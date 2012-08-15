@@ -1,20 +1,9 @@
 //     C:\ti\projects\.metadata\.plugins\org.eclipse.cdt.ui\Example_2806xCpuTimer.build.log
 //###########################################################################
 // Description:
-//! \addtogroup f2806x_example_list
-//! <h1>Cpu Timer (cpu_timer)</h1>
-//!
-//! This example configures CPU Timer0, 1, and 2 and increments
-//! a counter each time the timer asserts an interrupt.
-//!
-//! \b Watch \b Variables \n
-//! - CpuTimer0.InterruptCount
-//! - CpuTimer1.InterruptCount
-//! - CpuTimer2.InterruptCount
+
 //
-//###########################################################################
-// $TI Release: F2806x C/C++ Header Files and Peripheral Examples V130 $
-// $Release Date: November 30, 2011 $
+// Date: *
 //###########################################################################
 #define REV "0.01"
 #include "DSP28x_Project.h"     // Device Headerfile and Examples Include File
@@ -27,9 +16,8 @@
 #include "driverlib/systick.h"
 #include "driverlib/uart.h"
 #include "utils/cmdline.h"
+#include "console.h"
 #include "utils/uartstdio.h"
-
-// added this line aug 14 2012 at 8:59pm
 
 // Prototype statements for functions found within this file.
 __interrupt void cpu_timer0_isr(void);
@@ -38,40 +26,6 @@ __interrupt void cpu_timer2_isr(void);
 __interrupt void scia_rx_isr(void);
 void init(void);
 
-
-
-int
-Cmd_help(int argc, char *argv[])
-{
-    tCmdLineEntry *pEntry;
-
-    // Print some header text.
-    UARTprintf("\nAvailable commands\n");
-    UARTprintf("------------------\n");
-    // Point at the beginning of the command table.
-    pEntry = &g_sCmdTable[0];
-
-    // Enter a loop to read each entry from the command table.  The end of the
-    // table has been reached when the command name is NULL.
-    while(pEntry->pcCmd)
-    {
-        // Print the command name and the brief description.
-        UARTprintf("%s%s\n", pEntry->pcCmd, pEntry->pcHelp);
-
-        // Advance to the next entry in the table.
-        pEntry++;
-    }
-
-    // Return success.
-    return(0);
-}
-
-
-tCmdLineEntry g_sCmdTable[] =
-{
-    { "help",   Cmd_help,      " : Display list of commands" },
-    { 0, 0, 0 }
-};
 
 extern int var=10;
 
@@ -82,17 +36,15 @@ void main(void)
 
 	init();
 
-  UARTprintf("JSPK Motor Controller\r\n");
-  UARTprintf("Rev %s\r\n",REV);
+  UARTprintf("\033[36mJSPK Motor Controller\033[37m\r\n");
+  UARTprintf("\033[36mRev %s\033[37m\r\n",REV);
 
 
-  CmdLineProcess("help me!");
-  Uint32 y = 195936478;
-  UARTprintf("y = 0x%x\r\n",y);
-
-
-// Step 6. IDLE loop. Just sit and loop forever (optional):
-   for(;;);
+//   IDLE loop. Just sit and loop forever
+   while(1)
+   {
+	   dispatch_console();
+   }
 
 }
 
@@ -204,14 +156,14 @@ void init(void)
 	  //IntRegister(INT_SCIRXINTA, UARTStdioIntHandler);
 	  UARTStdioInitExpClk(0,9600);
 
-		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1, do it again in case ti fucked it up
-		   PieCtrlRegs.PIEIER9.bit.INTx1 = 1;
-		   PieCtrlRegs.PIEIER9.bit.INTx2 = 1;
-		   SciaRegs.SCIFFTX.bit.SCIFFENA = 0;
-		   SciaRegs.SCIFFRX.bit.RXFFIENA = 1;
-		   SciaRegs.SCIFFTX.bit.TXFFIENA = 1;
-		   SciaRegs.SCICTL2.bit.TXINTENA = 1;
-		   SciaRegs.SCICTL2.bit.RXBKINTENA = 1;
+//		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1, do it again in case ti mucked it up
+//		PieCtrlRegs.PIEIER9.bit.INTx1 = 1;
+//		PieCtrlRegs.PIEIER9.bit.INTx2 = 1;
+//		SciaRegs.SCIFFTX.bit.SCIFFENA = 0;
+//		SciaRegs.SCIFFRX.bit.RXFFIENA = 1;
+//		SciaRegs.SCIFFTX.bit.TXFFIENA = 1;
+//		SciaRegs.SCICTL2.bit.TXINTENA = 1;
+//		SciaRegs.SCICTL2.bit.RXBKINTENA = 1;
 
 
 }
@@ -232,7 +184,7 @@ __interrupt void scia_rx_isr(void)
 __interrupt void cpu_timer0_isr(void)
 {
    CpuTimer0.InterruptCount++;
-   UARTprintf("cpu_timer0_isr %u\r\n",CpuTimer0.InterruptCount);
+//   UARTprintf("cpu_timer0_isr %u\r\n",CpuTimer0.InterruptCount);
    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
 
 
