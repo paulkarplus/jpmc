@@ -1,0 +1,375 @@
+[33mcommit 21ad51cefe8f112d7c73b815b6b59a859afddcfc[m
+Author: Jut Shanahan <jut.shanahan@gmail.com>
+Date:   Wed Aug 15 03:32:19 2012 -0700
+
+    basic command line interface working
+
+[1mdiff --git a/console.c b/console.c[m
+[1mnew file mode 100644[m
+[1mindex 0000000..2bc6284[m
+[1m--- /dev/null[m
+[1m+++ b/console.c[m
+[36m@@ -0,0 +1,214 @@[m
+[32m+[m[32m#ifndef FCY[m
+[32m+[m[32m#define FCY 10000000		// 10.000000 MHz[m
+[32m+[m[32m#endif[m
+[32m+[m
+[32m+[m[32m#include "console.h"[m
+[32m+[m[32m//#include <string.h>[m
+[32m+[m[32m#include "inc/hw_ints.h"[m
+[32m+[m[32m#include "inc/hw_memmap.h"[m
+[32m+[m[32m#include "inc/hw_types.h"[m
+[32m+[m[32m#include "inc/hw_uart.h"[m
+[32m+[m[32m#include "driverlib/debug.h"[m
+[32m+[m[32m#include "driverlib/interrupt.h"[m
+[32m+[m[32m#include "driverlib/uart.h"[m
+[32m+[m[32m#include "utils/cmdline.h"[m
+[32m+[m[32m#include "utils/uartstdio.h"[m
+[32m+[m
+[32m+[m[32m#define MAX_COMMAND_LENGTH	32[m
+[32m+[m[32m//#define DEBUG[m
+[32m+[m
+[32m+[m
+[32m+[m[32mint Cmd_test(int argc, char *argv[])[m
+[32m+[m[32m{[m
+[32m+[m	[32mUARTprintf("argc=%d\r\n",(long)argc);[m
+[32m+[m	[32mreturn 0;[m
+[32m+[m[32m}[m
+[32m+[m[32mint Cmd_help(int argc, char *argv[])[m
+[32m+[m[32m{[m
+[32m+[m[32m    tCmdLineEntry *pEntry;[m
+[32m+[m
+[32m+[m[32m    // Print some header text.[m
+[32m+[m[32m//    printf("\a\033[31munknown register\033[37m\r\n");          //     \a=beep[m
+[32m+[m[32m    UARTprintf("Available commands\n");[m
+[32m+[m[32m    UARTprintf("------------------\n");[m
+[32m+[m[32m    // Point at the beginning of the command table.[m
+[32m+[m[32m    pEntry = &g_sCmdTable[0];[m
+[32m+[m
+[32m+[m[32m    // Enter a loop to read each entry from the command table.  The end of the[m
+[32m+[m[32m    // table has been reached when the command name is NULL.[m
+[32m+[m[32m    while(pEntry->pcCmd)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        // Print the command name and the brief description.[m
+[32m+[m[32m        UARTprintf("%s%s\n", pEntry->pcCmd, pEntry->pcHelp);[m
+[32m+[m
+[32m+[m[32m        // Advance to the next entry in the table.[m
+[32m+[m[32m        pEntry++;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    // Return success.[m
+[32m+[m[32m    return(0);[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m
+[32m+[m[32mtCmdLineEntry g_sCmdTable[] =[m
+[32m+[m[32m{[m
+[32m+[m[32m    { "help",   Cmd_help,      " : Display list of commands" },[m
+[32m+[m[32m    { "test",   Cmd_test,      " : test stuff" },[m
+[32m+[m[32m    { 0, 0, 0 }[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m
+[32m+[m[32mchar get_command(char *command, int maxlength);[m
+[32m+[m[32m//char gr(char *);[m
+[32m+[m[32m//char sr(char *);[m
+[32m+[m
+[32m+[m
+[32m+[m
+[32m+[m[32mchar misc(char *arg)[m
+[32m+[m[32m{[m
+[32m+[m[32m//	printf("doing misc things\r\n");[m
+[32m+[m
+[32m+[m	[32mreturn 1;[m
+[32m+[m[41m	[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m
+[32m+[m[32mvoid dispatch_console(void)[m
+[32m+[m[32m{[m
+[32m+[m	[32mstatic char command[MAX_COMMAND_LENGTH] = {0};		// MAX_COMMAND_LENGTH = 32[m
+[32m+[m	[32mstatic char lastcmd[MAX_COMMAND_LENGTH] = {0};		// MAX_COMMAND_LENGTH = 32[m
+[32m+[m	[32mstatic char init = 0;[m
+[32m+[m	[32mint length = strlen(command);[m
+[32m+[m	[32m//printf("length = %d\r\n",length);[m
+[32m+[m[41m	[m
+[32m+[m	[32mif(init == 0)[m
+[32m+[m	[32m{[m
+[32m+[m		[32mCmdLineProcess("help");[m
+[32m+[m		[32mUARTprintf("> ");[m
+[32m+[m		[32minit = 1;[m
+[32m+[m	[32m}[m
+[32m+[m[41m	[m
+[32m+[m	[32mif(get_command(command+length, MAX_COMMAND_LENGTH-length) == 0)[m
+[32m+[m	[32m{[m
+[32m+[m[32m//		strcpy(lastcmd,command);[m
+[32m+[m[32m//		UARTprintf("command rxed:%s\r\n",command);[m
+[32m+[m		[32mCmdLineProcess(command);[m
+[32m+[m		[32mmemset(command, 0, sizeof(command));[m
+[32m+[m		[32mUARTprintf("> ");[m
+[32m+[m	[32m}[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mchar get_command(char *command, int maxlength)[m
+[32m+[m[32m{[m
+[32m+[m	[32mchar input=0;[m
+[32m+[m	[32mlong length=0;[m
+[32m+[m
+[32m+[m	[32mif(UARTCharsAvail(UART0_BASE) == 0)[m
+[32m+[m	[32m{[m
+[32m+[m		[32m//UARTprintf("no chars available :( \r\n");[m
+[32m+[m		[32mreturn 1;[m
+[32m+[m	[32m}[m
+[32m+[m	[32melse[m
+[32m+[m	[32m{[m
+[32m+[m		[32minput = UARTCharGetNonBlocking(UART0_BASE);[m
+[32m+[m[32m//		UARTprintf("length=%u\r\n",length);[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m[41m	[m
+[32m+[m	[32mwhile(input != '\r' && input != '\n')[m
+[32m+[m	[32m{[m
+[32m+[m		[32mif(input == 0x7F)  // backspace[m
+[32m+[m		[32m{[m
+[32m+[m			[32m//U1TXREG = input;[m
+[32m+[m			[32mUARTCharPutNonBlocking(UART0_BASE, (unsigned char)(input));[m
+[32m+[m			[32m//UARTprintf("backspace");[m
+[32m+[m			[32m//printf("%c", input);[m
+[32m+[m			[32mcommand--;[m
+[32m+[m			[32m*command = 0;			// set previous input char = NULL character[m
+[32m+[m			[32mcommand++;[m
+[32m+[m			[32mreturn 1;[m
+[32m+[m		[32m}[m
+[32m+[m[41m		[m
+[32m+[m[41m		[m
+[32m+[m		[32m*command = input;[m
+[32m+[m		[32m//UARTprintf("%c", *command++);[m
+[32m+[m		[32mUARTCharPutNonBlocking(UART0_BASE, *command++);[m
+[32m+[m		[32mif(++length == maxlength - 1)[m
+[32m+[m			[32mbreak;[m
+[32m+[m[41m		[m
+[32m+[m		[32mif(UARTCharsAvail(UART0_BASE)==0)[m
+[32m+[m			[32mreturn 1;[m
+[32m+[m		[32melse[m
+[32m+[m			[32minput=UARTCharGetNonBlocking(UART0_BASE);[m
+[32m+[m[41m	[m
+[32m+[m	[32m}[m
+[32m+[m	[32mUARTprintf("\n");[m
+[32m+[m[41m	[m
+[32m+[m	[32mreturn 0;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m
+[32m+[m[32m//char gr(char *arg)[m
+[32m+[m[32m//{[m
+[32m+[m[32m//	char string[16]={0}, *end;[m
+[32m+[m[32m//	unsigned int temp, *ptr, y;[m
+[32m+[m[32m//	unsigned long x;[m
+[32m+[m[32m//[m
+[32m+[m[32m//	if(arg[0]=='0' && arg[1]=='x')[m
+[32m+[m[32m//	{[m
+[32m+[m[32m//		x = strtol(arg, &end, 0);[m
+[32m+[m[32m//		y = (unsigned int)x;[m
+[32m+[m[32m//		ptr = (unsigned int *)y;[m
+[32m+[m[32m//	}[m
+[32m+[m[32m//	else[m
+[32m+[m[32m//	{[m
+[32m+[m[32m//		if(reglookup(&temp,arg))[m
+[32m+[m[32m//			ptr = (unsigned int *)temp;[m
+[32m+[m[32m//		else[m
+[32m+[m[32m//		{[m
+[32m+[m[32m//			printf("\a\033[31munknown register\033[37m\r\n");[m
+[32m+[m[32m//			return 0;[m
+[32m+[m[32m//		}[m
+[32m+[m[32m//[m
+[32m+[m[32m//	}[m
+[32m+[m[32m//[m
+[32m+[m[32m//	btoa(string,*ptr);[m
+[32m+[m[32m//	printf("%s.b = %u = 0x%x\r\n",string,*ptr,*ptr);[m
+[32m+[m[32m//	return 1;[m
+[32m+[m[32m//[m
+[32m+[m[32m//}[m
+[32m+[m[32m//[m
+[32m+[m[32m//char sr(char *arg)[m
+[32m+[m[32m//{[m
+[32m+[m[32m//	char *token, strSFR[10]={0}, strval[10]={0}, *end;[m
+[32m+[m[32m//	unsigned int addr, val, *ptr, y;[m
+[32m+[m[32m//	unsigned long x;[m
+[32m+[m[32m//[m
+[32m+[m[32m//	token = strtok(arg," ");[m
+[32m+[m[32m//	strcpy(strSFR,token);[m
+[32m+[m[32m//[m
+[32m+[m[32m//	if(strSFR[0]=='0' && strSFR[1]=='x')[m
+[32m+[m[32m//	{[m
+[32m+[m[32m//		x = strtol(strSFR, &end, 0);[m
+[32m+[m[32m//		y = (unsigned int)x;[m
+[32m+[m[32m//		addr = (unsigned int)x;[m
+[32m+[m[32m//	}[m
+[32m+[m[32m//	else[m
+[32m+[m[32m//	{[m
+[32m+[m[32m//		if(!reglookup(&addr,strSFR))   // addr = address of SFR[m
+[32m+[m[32m//		{[m
+[32m+[m[32m//			printf("\a\033[31munknown register\033[37m\r\n");[m
+[32m+[m[32m//			return 0;[m
+[32m+[m[32m//		}[m
+[32m+[m[32m//	}[m
+[32m+[m[32m//[m
+[32m+[m[32m//	token = strtok(NULL," ");[m
+[32m+[m[32m//	strcpy(strval,token);[m
+[32m+[m[32m//	x = strtol(strval, &end, 0);[m
+[32m+[m[32m//	val = (unsigned int)x;[m
+[32m+[m[32m//[m
+[32m+[m[32m//	ptr = (unsigned int *)addr;[m
+[32m+[m[32m//	*ptr = val;[m
+[32m+[m[32m//[m
+[32m+[m[32m//	return 1;[m
+[32m+[m[32m//}[m
+[1mdiff --git a/console.h b/console.h[m
+[1mnew file mode 100644[m
+[1mindex 0000000..0e8d722[m
+[1m--- /dev/null[m
+[1m+++ b/console.h[m
+[36m@@ -0,0 +1,6 @@[m
+[32m+[m[32m#ifndef CONSOLE_H[m
+[32m+[m[32m#define CONSOLE_H[m
+[32m+[m[32m#endif[m
+[32m+[m
+[32m+[m[32mvoid dispatch_console(void);[m
+[32m+[m
+[1mdiff --git a/jpmc.c b/jpmc.c[m
+[1mindex 25ab3fd..c96bc59 100644[m
+[1m--- a/jpmc.c[m
+[1m+++ b/jpmc.c[m
+[36m@@ -1,20 +1,9 @@[m
+ //     C:\ti\projects\.metadata\.plugins\org.eclipse.cdt.ui\Example_2806xCpuTimer.build.log[m
+ //###########################################################################[m
+ // Description:[m
+[31m-//! \addtogroup f2806x_example_list[m
+[31m-//! <h1>Cpu Timer (cpu_timer)</h1>[m
+[31m-//![m
+[31m-//! This example configures CPU Timer0, 1, and 2 and increments[m
+[31m-//! a counter each time the timer asserts an interrupt.[m
+[31m-//![m
+[31m-//! \b Watch \b Variables \n[m
+[31m-//! - CpuTimer0.InterruptCount[m
+[31m-//! - CpuTimer1.InterruptCount[m
+[31m-//! - CpuTimer2.InterruptCount[m
+[32m+[m
+ //[m
+[31m-//###########################################################################[m
+[31m-// $TI Release: F2806x C/C++ Header Files and Peripheral Examples V130 $[m
+[31m-// $Release Date: November 30, 2011 $[m
+[32m+[m[32m// Date: *[m
+ //###########################################################################[m
+ #define REV "0.01"[m
+ #include "DSP28x_Project.h"     // Device Headerfile and Examples Include File[m
+[36m@@ -27,10 +16,9 @@[m
+ #include "driverlib/systick.h"[m
+ #include "driverlib/uart.h"[m
+ #include "utils/cmdline.h"[m
+[32m+[m[32m#include "console.h"[m
+ #include "utils/uartstdio.h"[m
+ [m
+[31m-// added this line aug 14 2012 at 8:59pm[m
+[31m-[m
+ // Prototype statements for functions found within this file.[m
+ __interrupt void cpu_timer0_isr(void);[m
+ __interrupt void cpu_timer1_isr(void);[m
+[36m@@ -39,40 +27,6 @@[m [m__interrupt void scia_rx_isr(void);[m
+ void init(void);[m
+ [m
+ [m
+[31m-[m
+[31m-int[m
+[31m-Cmd_help(int argc, char *argv[])[m
+[31m-{[m
+[31m-    tCmdLineEntry *pEntry;[m
+[31m-[m
+[31m-    // Print some header text.[m
+[31m-    UARTprintf("\nAvailable commands\n");[m
+[31m-    UARTprintf("------------------\n");[m
+[31m-    // Point at the beginning of the command table.[m
+[31m-    pEntry = &g_sCmdTable[0];[m
+[31m-[m
+[31m-    // Enter a loop to read each entry from the command table.  The end of the[m
+[31m-    // table has been reached when the command name is NULL.[m
+[31m-    while(pEntry->pcCmd)[m
+[31m-    {[m
+[31m-        // Print the command name and the brief description.[m
+[31m-        UARTprintf("%s%s\n", pEntry->pcCmd, pEntry->pcHelp);[m
+[31m-[m
+[31m-        // Advance to the next entry in the table.[m
+[31m-        pEntry++;[m
+[31m-    }[m
+[31m-[m
+[31m-    // Return success.[m
+[31m-    return(0);[m
+[31m-}[m
+[31m-[m
+[31m-[m
+[31m-tCmdLineEntry g_sCmdTable[] =[m
+[31m-{[m
+[31m-    { "help",   Cmd_help,      " : Display list of commands" },[m
+[31m-    { 0, 0, 0 }[m
+[31m-};[m
+[31m-[m
+ extern int var=10;[m
+ [m
+ [m
+[36m@@ -82,17 +36,15 @@[m [mvoid main(void)[m
+ [m
+ 	init();[m
+ [m
+[31m-  UARTprintf("JSPK Motor Controller\r\n");[m
+[31m-  UARTprintf("Rev %s\r\n",REV);[m
+[31m-[m
+[31m-[m
+[31m-  CmdLineProcess("help me!");[m
+[31m-  Uint32 y = 195936478;[m
+[31m-  UARTprintf("y = 0x%x\r\n",y);[m
+[32m+[m[32m  UARTprintf("\033[36mJSPK Motor Controller\033[37m\r\n");[m
+[32m+[m[32m  UARTprintf("\033[36mRev %s\033[37m\r\n",REV);[m
+ [m
+ [m
+[31m-// Step 6. IDLE loop. Just sit and loop forever (optional):[m
+[31m-   for(;;);[m
+[32m+[m[32m//   IDLE loop. Just sit and loop forever[m
+[32m+[m[32m   while(1)[m
+[32m+[m[32m   {[m
+[32m+[m	[32m   dispatch_console();[m
+[32m+[m[32m   }[m
+ [m
+ }[m
+ [m
+[36m@@ -204,14 +156,14 @@[m [mvoid init(void)[m
+ 	  //IntRegister(INT_SCIRXINTA, UARTStdioIntHandler);[m
+ 	  UARTStdioInitExpClk(0,9600);[m
+ [m
+[31m-		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1, do it again in case ti fucked it up[m
+[31m-		   PieCtrlRegs.PIEIER9.bit.INTx1 = 1;[m
+[31m-		   PieCtrlRegs.PIEIER9.bit.INTx2 = 1;[m
+[31m-		   SciaRegs.SCIFFTX.bit.SCIFFENA = 0;[m
+[31m-		   SciaRegs.SCIFFRX.bit.RXFFIENA = 1;[m
+[31m-		   SciaRegs.SCIFFTX.bit.TXFFIENA = 1;[m
+[31m-		   SciaRegs.SCICTL2.bit.TXINTENA = 1;[m
+[31m-		   SciaRegs.SCICTL2.bit.RXBKINTENA = 1;[m
+[32m+[m[32m//		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1, do it again in case ti mucked it up[m
+[32m+[m[32m//		PieCtrlRegs.PIEIER9.bit.INTx1 = 1;[m
+[32m+[m[32m//		PieCtrlRegs.PIEIER9.bit.INTx2 = 1;[m
+[32m+[m[32m//		SciaRegs.SCIFFTX.bit.SCIFFENA = 0;[m
+[32m+[m[32m//		SciaRegs.SCIFFRX.bit.RXFFIENA = 1;[m
+[32m+[m[32m//		SciaRegs.SCIFFTX.bit.TXFFIENA = 1;[m
+[32m+[m[32m//		SciaRegs.SCICTL2.bit.TXINTENA = 1;[m
+[32m+[m[32m//		SciaRegs.SCICTL2.bit.RXBKINTENA = 1;[m
+ [m
+ [m
+ }[m
+[36m@@ -232,7 +184,7 @@[m [m__interrupt void scia_rx_isr(void)[m
+ __interrupt void cpu_timer0_isr(void)[m
+ {[m
+    CpuTimer0.InterruptCount++;[m
+[31m-   UARTprintf("cpu_timer0_isr %u\r\n",CpuTimer0.InterruptCount);[m
+[32m+[m[32m//   UARTprintf("cpu_timer0_isr %u\r\n",CpuTimer0.InterruptCount);[m
+    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;[m
+ [m
+ [m
