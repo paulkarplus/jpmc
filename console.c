@@ -3,6 +3,7 @@
 #endif
 
 #include "console.h"
+#include "F2806x_Cla_typedefs.h"// F2806x CLA Type definitions
 //#include <string.h>
 #include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
@@ -13,10 +14,17 @@
 #include "driverlib/uart.h"
 #include "utils/cmdline.h"
 #include "utils/uartstdio.h"
+#include "F2806x_Gpio.h"               // General Purpose I/O Registers
 
 #define MAX_COMMAND_LENGTH	32
 //#define DEBUG
 
+int Cmd_blink(int argc,char *argv[])
+{
+	GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
+	UARTprintf("Blink!!!\r\n");
+	return 0;
+}
 
 int Cmd_test(int argc, char *argv[])
 {
@@ -54,6 +62,7 @@ tCmdLineEntry g_sCmdTable[] =
 {
     { "help",   Cmd_help,      " : Display list of commands" },
     { "test",   Cmd_test,      " : test stuff" },
+    { "blink",  Cmd_blink,     " : Blink the LED"},
     { 0, 0, 0 }
 };
 
@@ -77,7 +86,7 @@ void dispatch_console(void)
 {
 	static char command[MAX_COMMAND_LENGTH] = {0};		// MAX_COMMAND_LENGTH = 32
 	static char lastcmd[MAX_COMMAND_LENGTH] = {0};		// MAX_COMMAND_LENGTH = 32
-	static char init = 0;
+	static char init = 1;
 	int length = strlen(command);
 	//printf("length = %d\r\n",length);
 	
