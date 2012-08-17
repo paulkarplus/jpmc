@@ -7,8 +7,9 @@
 // Rev		Date		Edited By		Revision Notes
 // 0.01		8/15/2012	Jut				Initial rev. Basic serial command functionality working. Delete, printf, and several other things implemented.
 // 0.02		8/15/2012	PK				Moved dispatch_console command to the SCIA rx interrupt. Added a command line function that blinks the LED on the controlStick. Cleaned up and commented code.
+// 0.03		8/16/2012	Jut				Added command to set led blink frequency
 //###########################################################################
-#define REV "0.02"
+#define REV "0.03"
 
 #include "DSP28x_Project.h"     	   // Device Headerfile and Examples Include File
 #include <string.h>
@@ -51,7 +52,7 @@ __interrupt void scia_rx_isr(void);					// sci receive interrupt function
 void init(void);
 
 // Initialize global variables for this file
-extern int var=10;
+float Freq = 1;   // frequency of timer0 interrupt in Hz
 
 
 void main(void)
@@ -72,9 +73,6 @@ void main(void)
 // Initial setup of all registers
 void init(void)
 {
-	float Freq = 60;   // frequency of timer0 interrupt in Hz
-
-
 	// Initialize System Control:
 	// PLL, WatchDog, enable Peripheral Clocks
 	InitSysCtrl();
@@ -172,7 +170,8 @@ __interrupt void cpu_timer0_isr(void)
 {
    CpuTimer0.InterruptCount++;
 //   UARTprintf("cpu_timer0_isr %u\r\n",CpuTimer0.InterruptCount);
-   //GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
+   GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
+
 
 
 //   if(SciaRegs.SCIFFRX.bit.RXFFINT)

@@ -4,7 +4,8 @@
 
 #include "console.h"
 #include "F2806x_Cla_typedefs.h"// F2806x CLA Type definitions
-//#include <string.h>
+#include <string.h>
+#include <stdlib.h>
 #include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
@@ -15,9 +16,31 @@
 #include "utils/cmdline.h"
 #include "utils/uartstdio.h"
 #include "F2806x_Gpio.h"               // General Purpose I/O Registers
+#include "F2806x_CpuTimers.h"          // 32-bit CPU Timers
 
 #define MAX_COMMAND_LENGTH	32
 //#define DEBUG
+
+extern float Freq;   // frequency of timer0 interrupt in Hz
+
+int Cmd_LED_Freq(int argc,char *argv[])
+{
+
+	Freq = atof(argv[1]);     // convert first element in argument vector (array of strings) to a float using ascii to float function
+	if(Freq >= 0)
+	{
+		ConfigCpuTimer(&CpuTimer0, 80, 1.0/Freq*1000000.0);
+		CpuTimer0Regs.TCR.all = 0x4000; // Use write-only instruction to set TSS bit = 0 (starts timer) and TIE=1
+		UARTprintf("blink frequency set to %u Hz\r\n",(long)Freq);
+	}
+	else
+	{
+		UARTprintf("invalid frequency\r\n",(long)Freq);
+	}
+
+
+	return 0;
+}
 
 int Cmd_blink(int argc,char *argv[])
 {
@@ -26,11 +49,7 @@ int Cmd_blink(int argc,char *argv[])
 	return 0;
 }
 
-int Cmd_test(int argc, char *argv[])
-{
-	UARTprintf("argc=%d\r\n",(long)argc);
-	return 0;
-}
+
 int Cmd_help(int argc, char *argv[])
 {
     tCmdLineEntry *pEntry;
@@ -61,8 +80,8 @@ int Cmd_help(int argc, char *argv[])
 tCmdLineEntry g_sCmdTable[] =
 {
     { "help",   Cmd_help,      " : Display list of commands" },
-    { "test",   Cmd_test,      " : test stuff" },
     { "blink",  Cmd_blink,     " : Blink the LED"},
+    { "ledf",  Cmd_LED_Freq,   " : Set LED blinking frequency"},
     { 0, 0, 0 }
 };
 
