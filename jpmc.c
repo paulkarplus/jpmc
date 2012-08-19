@@ -8,8 +8,9 @@
 // 0.01		8/15/2012	Jut				Initial rev. Basic serial command functionality working. Delete, printf, and several other things implemented.
 // 0.02		8/15/2012	PK				Moved dispatch_console command to the SCIA rx interrupt. Added a command line function that blinks the LED on the controlStick. Cleaned up and commented code.
 // 0.03		8/16/2012	Jut				Added command to set led blink frequency
+// 0.04		8/18/2012	Jut				Added command to get value at any data memory location.  Added UART color defines.
 //###########################################################################
-#define REV "0.03"
+#define REV "0.04"
 
 #include "DSP28x_Project.h"     	   // Device Headerfile and Examples Include File
 #include <string.h>
@@ -23,6 +24,8 @@
 #include "utils/cmdline.h"
 #include "console.h"
 #include "utils/uartstdio.h"
+#include "uartcolors.h"
+
 
 #include "F2806x_Adc.h"                // ADC Registers
 #include "F2806x_BootVars.h"           // Boot ROM Variables
@@ -61,8 +64,13 @@ void main(void)
 
 	// Print bootup message containing device title and revision number
 	UARTprintf("\r\n");
-	UARTprintf("\033[36mJSPK Motor Controller\033[37m\r\n");
-	UARTprintf("\033[36mRev %s\033[37m\r\n",REV);
+	UARTprintf(BOLDCYAN);
+	UARTprintf("JSPK Motor Controller\r\n");
+	UARTprintf("Rev %s\r\n",REV);
+	UARTprintf(restore);
+
+//	UARTprintf("\033[36mJSPK Motor Controller\033[37m\r\n");
+//	UARTprintf("\033[36mRev %s\033[37m\r\n",REV);
 	CmdLineProcess("help");
 	UARTprintf("> ");
 

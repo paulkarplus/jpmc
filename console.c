@@ -18,10 +18,14 @@
 #include "F2806x_Gpio.h"               // General Purpose I/O Registers
 #include "F2806x_CpuTimers.h"          // 32-bit CPU Timers
 
+
 #define MAX_COMMAND_LENGTH	32
 //#define DEBUG
 
 extern float Freq;   // frequency of timer0 interrupt in Hz
+
+
+void btoa(char *string, unsigned int var);      // convert 16bit variable into a string
 
 int Cmd_LED_Freq(int argc,char *argv[])
 {
@@ -76,12 +80,66 @@ int Cmd_help(int argc, char *argv[])
     return(0);
 }
 
+int Cmd_Get_Reg(int argc, char *argv[])
+{
+	char string[16]={0};
+	volatile unsigned long *ptr, x, y;
+
+	x = (unsigned long)(strtol(argv[1], 0, 16));   // "strtol" converts the string into a long integer
+	UARTprintf("address requested = 0x%x\r\n",x);
+	ptr = (unsigned long *)x;
+	y = *ptr;
+	btoa(string,y);
+	UARTprintf("%s.b = %u = 0x%x\r\n",string,(Uint32)((Uint16)y),(Uint32)((Uint16)y));
+//	UARTprintf("partid = 0x%x\r\n",*(unsigned long *)(0x883));
+
+
+	return 1;
+
+}
+//
+//char sr(char *arg)
+//{
+//	char *token, strSFR[10]={0}, strval[10]={0}, *end;
+//	unsigned int addr, val, *ptr, y;
+//	unsigned long x;
+//
+//	token = strtok(arg," ");
+//	strcpy(strSFR,token);
+//
+//	if(strSFR[0]=='0' && strSFR[1]=='x')
+//	{
+//		x = strtol(strSFR, &end, 0);
+//		y = (unsigned int)x;
+//		addr = (unsigned int)x;
+//	}
+//	else
+//	{
+//		if(!reglookup(&addr,strSFR))   // addr = address of SFR
+//		{
+//			printf("\a\033[31munknown register\033[37m\r\n");
+//			return 0;
+//		}
+//	}
+//
+//	token = strtok(NULL," ");
+//	strcpy(strval,token);
+//	x = strtol(strval, &end, 0);
+//	val = (unsigned int)x;
+//
+//	ptr = (unsigned int *)addr;
+//	*ptr = val;
+//
+//	return 1;
+//}
+
 
 tCmdLineEntry g_sCmdTable[] =
 {
     { "help",   Cmd_help,      " : Display list of commands" },
     { "blink",  Cmd_blink,     " : Blink the LED"},
     { "ledf",  Cmd_LED_Freq,   " : Set LED blinking frequency"},
+    { "gr",    Cmd_Get_Reg,    " : Get Register"},
     { 0, 0, 0 }
 };
 
@@ -176,67 +234,26 @@ char get_command(char *command, int maxlength)
 }
 
 
-//char gr(char *arg)
-//{
-//	char string[16]={0}, *end;
-//	unsigned int temp, *ptr, y;
-//	unsigned long x;
-//
-//	if(arg[0]=='0' && arg[1]=='x')
-//	{
-//		x = strtol(arg, &end, 0);
-//		y = (unsigned int)x;
-//		ptr = (unsigned int *)y;
-//	}
-//	else
-//	{
-//		if(reglookup(&temp,arg))
-//			ptr = (unsigned int *)temp;
-//		else
-//		{
-//			printf("\a\033[31munknown register\033[37m\r\n");
-//			return 0;
-//		}
-//
-//	}
-//
-//	btoa(string,*ptr);
-//	printf("%s.b = %u = 0x%x\r\n",string,*ptr,*ptr);
-//	return 1;
-//
-//}
-//
-//char sr(char *arg)
-//{
-//	char *token, strSFR[10]={0}, strval[10]={0}, *end;
-//	unsigned int addr, val, *ptr, y;
-//	unsigned long x;
-//
-//	token = strtok(arg," ");
-//	strcpy(strSFR,token);
-//
-//	if(strSFR[0]=='0' && strSFR[1]=='x')
-//	{
-//		x = strtol(strSFR, &end, 0);
-//		y = (unsigned int)x;
-//		addr = (unsigned int)x;
-//	}
-//	else
-//	{
-//		if(!reglookup(&addr,strSFR))   // addr = address of SFR
-//		{
-//			printf("\a\033[31munknown register\033[37m\r\n");
-//			return 0;
-//		}
-//	}
-//
-//	token = strtok(NULL," ");
-//	strcpy(strval,token);
-//	x = strtol(strval, &end, 0);
-//	val = (unsigned int)x;
-//
-//	ptr = (unsigned int *)addr;
-//	*ptr = val;
-//
-//	return 1;
-//}
+// convert 16bit variable into a string
+void btoa(char *string, unsigned int var)
+{
+
+	unsigned int x=0, i=0;
+
+	// initialize array to all
+	for(i=0; i<16; i++)
+		string[i] = 48;				// Decimal 48 is equivalent to the ascii char "0"
+
+	string[16] = 0;					// the last char in the char array must be a 0
+
+	for(i=0; i<17; i++)
+	{
+		x = var << i;				// shift var to the left
+		x = x & 0x8000;				// zero out bits 0 - 14, leave bit 15 intact
+		if(x == 0x8000)				// is bit 15 set?
+			string[i] = 49;			// Decimal 49 is equivalent to the ascii char "1"
+
+		x = 0;
+	}
+
+}
