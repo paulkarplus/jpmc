@@ -17,6 +17,7 @@
 #include "utils/uartstdio.h"
 #include "F2806x_Gpio.h"               // General Purpose I/O Registers
 #include "F2806x_CpuTimers.h"          // 32-bit CPU Timers
+#include "F2806x_EPwm.h"               // Enhanced PWM
 
 
 #define MAX_COMMAND_LENGTH	32
@@ -26,6 +27,67 @@ extern float Freq;   // frequency of timer0 interrupt in Hz
 
 
 void btoa(char *string, unsigned int var);      // convert 16bit variable into a string
+
+int Cmd_Get_PWM_Regs(int argc,char *argv[])
+{
+	char string[16]={0};
+	volatile unsigned long *ptr, x, y;
+	volatile unsigned short *addr;
+	volatile Uint32 *addr2;
+
+	EPwm1Regs.TBCTL.bit.CTRMODE=0;
+
+
+	addr = &(EPwm1Regs.TBCTL.all);   btoa(string,EPwm1Regs.TBCTL.all);	UARTprintf("TBCTL (0x%x) = \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TBCTL.all,(Uint32)EPwm1Regs.TBCTL.all);
+	addr = &(EPwm1Regs.TBSTS.all);	btoa(string,EPwm1Regs.TBSTS.all);	UARTprintf("TBSTS = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TBSTS.all,(Uint32)EPwm1Regs.TBSTS.all);
+	addr2 = &(EPwm1Regs.TBPHS.all);	btoa(string,EPwm1Regs.TBPHS.all);	UARTprintf("TBPHS = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr2,string,(Uint32)EPwm1Regs.TBPHS.all,(Uint32)EPwm1Regs.TBPHS.all);
+	addr = &(EPwm1Regs.TBCTR);	btoa(string,EPwm1Regs.TBCTR);	UARTprintf("TBCTR = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TBCTR,(Uint32)EPwm1Regs.TBCTR);
+	addr = &(EPwm1Regs.TBPRD);	btoa(string,EPwm1Regs.TBPRD);	UARTprintf("TBPRD = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TBPRD,(Uint32)EPwm1Regs.TBPRD);
+	addr = &(EPwm1Regs.TBPRDHR);	btoa(string,EPwm1Regs.TBPRDHR);	UARTprintf("TBPRDHR = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TBPRDHR,(Uint32)EPwm1Regs.TBPRDHR);
+	addr = &(EPwm1Regs.CMPCTL.all);	btoa(string,EPwm1Regs.CMPCTL.all);	UARTprintf("CMPCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.CMPCTL.all,(Uint32)EPwm1Regs.CMPCTL.all);
+	addr2 = &(EPwm1Regs.CMPA.all);	btoa(string,EPwm1Regs.CMPA.all);	UARTprintf("CMPA = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr2,string,(Uint32)EPwm1Regs.CMPA.all,(Uint32)EPwm1Regs.CMPA.all);
+	addr = &(EPwm1Regs.CMPB);	btoa(string,EPwm1Regs.CMPB);	UARTprintf("CMPB = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.CMPB,(Uint32)EPwm1Regs.CMPB);
+	addr = &(EPwm1Regs.AQCTLA.all);	btoa(string,EPwm1Regs.AQCTLA.all);	UARTprintf("AQCTLA = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.AQCTLA.all,(Uint32)EPwm1Regs.AQCTLA.all);
+	addr = &(EPwm1Regs.AQCTLB.all);	btoa(string,EPwm1Regs.AQCTLB.all);	UARTprintf("AQCTLB = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.AQCTLB.all,(Uint32)EPwm1Regs.AQCTLB.all);
+	addr = &(EPwm1Regs.AQSFRC.all);	btoa(string,EPwm1Regs.AQSFRC.all);	UARTprintf("AQSFRC = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.AQSFRC.all,(Uint32)EPwm1Regs.AQSFRC.all);
+	addr = &(EPwm1Regs.AQCSFRC.all);	btoa(string,EPwm1Regs.AQCSFRC.all);	UARTprintf("AQCSFRC = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.AQCSFRC.all,(Uint32)EPwm1Regs.AQCSFRC.all);
+	addr = &(EPwm1Regs.DBCTL.all);	btoa(string,EPwm1Regs.DBCTL.all);	UARTprintf("DBCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DBCTL.all,(Uint32)EPwm1Regs.DBCTL.all);
+	addr = &(EPwm1Regs.DBRED);	btoa(string,EPwm1Regs.DBRED);	UARTprintf("DBRED = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DBRED,(Uint32)EPwm1Regs.DBRED);
+	addr = &(EPwm1Regs.DBFED);	btoa(string,EPwm1Regs.DBFED);	UARTprintf("DBFED = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DBFED,(Uint32)EPwm1Regs.DBFED);
+	addr = &(EPwm1Regs.TZSEL.all);	btoa(string,EPwm1Regs.TZSEL.all);	UARTprintf("TZSEL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZSEL.all,(Uint32)EPwm1Regs.TZSEL.all);
+	addr = &(EPwm1Regs.TZDCSEL.all);	btoa(string,EPwm1Regs.TZDCSEL.all);	UARTprintf("TZDCSEL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZDCSEL.all,(Uint32)EPwm1Regs.TZDCSEL.all);
+	addr = &(EPwm1Regs.TZCTL.all);	btoa(string,EPwm1Regs.TZCTL.all);	UARTprintf("TZCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZCTL.all,(Uint32)EPwm1Regs.TZCTL.all);
+	addr = &(EPwm1Regs.TZEINT.all);	btoa(string,EPwm1Regs.TZEINT.all);	UARTprintf("TZEINT = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZEINT.all,(Uint32)EPwm1Regs.TZEINT.all);
+	addr = &(EPwm1Regs.TZFLG.all);	btoa(string,EPwm1Regs.TZFLG.all);	UARTprintf("TZFLG = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZFLG.all,(Uint32)EPwm1Regs.TZFLG.all);
+	addr = &(EPwm1Regs.TZCLR.all);	btoa(string,EPwm1Regs.TZCLR.all);	UARTprintf("TZCLR = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZCLR.all,(Uint32)EPwm1Regs.TZCLR.all);
+	addr = &(EPwm1Regs.TZFRC.all);	btoa(string,EPwm1Regs.TZFRC.all);	UARTprintf("TZFRC = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.TZFRC.all,(Uint32)EPwm1Regs.TZFRC.all);
+	addr = &(EPwm1Regs.ETSEL.all);	btoa(string,EPwm1Regs.ETSEL.all);	UARTprintf("ETSEL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.ETSEL.all,(Uint32)EPwm1Regs.ETSEL.all);
+	addr = &(EPwm1Regs.ETPS.all);	btoa(string,EPwm1Regs.ETPS.all);	UARTprintf("ETPS = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.ETPS.all,(Uint32)EPwm1Regs.ETPS.all);
+	addr = &(EPwm1Regs.ETFLG.all);	btoa(string,EPwm1Regs.ETFLG.all);	UARTprintf("ETFLG = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.ETFLG.all,(Uint32)EPwm1Regs.ETFLG.all);
+	addr = &(EPwm1Regs.ETCLR.all);	btoa(string,EPwm1Regs.ETCLR.all);	UARTprintf("ETCLR = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.ETCLR.all,(Uint32)EPwm1Regs.ETCLR.all);
+	addr = &(EPwm1Regs.ETFRC.all);	btoa(string,EPwm1Regs.ETFRC.all);	UARTprintf("ETFRC = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.ETFRC.all,(Uint32)EPwm1Regs.ETFRC.all);
+	addr = &(EPwm1Regs.PCCTL.all);	btoa(string,EPwm1Regs.PCCTL.all);	UARTprintf("PCCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.PCCTL.all,(Uint32)EPwm1Regs.PCCTL.all);
+	addr = &(EPwm1Regs.HRCNFG.all);	btoa(string,EPwm1Regs.HRCNFG.all);	UARTprintf("HRCNFG = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.HRCNFG.all,(Uint32)EPwm1Regs.HRCNFG.all);
+	//addr = &(EPwm1Regs.HRPWR.all);	btoa(string,EPwm1Regs.HRPWR);	UARTprintf("HRPWR = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.HRPWR,(Uint32)EPwm1Regs.HRPWR);
+	//addr = &(EPwm1Regs.HRMSTEP.all);	btoa(string,EPwm1Regs.HRMSTEP);	UARTprintf("HRMSTEP = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.HRMSTEP,(Uint32)EPwm1Regs.HRMSTEP);
+	addr = &(EPwm1Regs.HRPCTL.all);	btoa(string,EPwm1Regs.HRPCTL.all);	UARTprintf("HRPCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.HRPCTL.all,(Uint32)EPwm1Regs.HRPCTL.all);
+	addr2 = &(EPwm1Regs.TBPRDM.all);	btoa(string,EPwm1Regs.TBPRDM.all);	UARTprintf("TBPRDM = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr2,string,(Uint32)EPwm1Regs.TBPRDM.all,(Uint32)EPwm1Regs.TBPRDM.all);
+	addr2 = &(EPwm1Regs.CMPAM.all);	btoa(string,EPwm1Regs.CMPAM.all);	UARTprintf("CMPAM = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr2,string,(Uint32)EPwm1Regs.CMPAM.all,(Uint32)EPwm1Regs.CMPAM.all);
+	addr = &(EPwm1Regs.DCTRIPSEL.all);	btoa(string,EPwm1Regs.DCTRIPSEL.all);	UARTprintf("DCTRIPSEL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCTRIPSEL.all,(Uint32)EPwm1Regs.DCTRIPSEL.all);
+	addr = &(EPwm1Regs.DCACTL.all);	btoa(string,EPwm1Regs.DCACTL.all);	UARTprintf("DCACTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCACTL.all,(Uint32)EPwm1Regs.DCACTL.all);
+	addr = &(EPwm1Regs.DCBCTL.all);	btoa(string,EPwm1Regs.DCBCTL.all);	UARTprintf("DCBCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCBCTL.all,(Uint32)EPwm1Regs.DCBCTL.all);
+	addr = &(EPwm1Regs.DCFCTL.all);	btoa(string,EPwm1Regs.DCFCTL.all);	UARTprintf("DCFCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCFCTL.all,(Uint32)EPwm1Regs.DCFCTL.all);
+	addr = &(EPwm1Regs.DCCAPCTL.all);	btoa(string,EPwm1Regs.DCCAPCTL.all);	UARTprintf("DCCAPCTL = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCCAPCTL.all,(Uint32)EPwm1Regs.DCCAPCTL.all);
+	addr = &(EPwm1Regs.DCFOFFSET);	btoa(string,EPwm1Regs.DCFOFFSET);	UARTprintf("DCFOFFSET = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCFOFFSET,(Uint32)EPwm1Regs.DCFOFFSET);
+	addr = &(EPwm1Regs.DCFOFFSETCNT);	btoa(string,EPwm1Regs.DCFOFFSETCNT);	UARTprintf("DCFOFFSETCNT = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCFOFFSETCNT,(Uint32)EPwm1Regs.DCFOFFSETCNT);
+	addr = &(EPwm1Regs.DCFWINDOW);	btoa(string,EPwm1Regs.DCFWINDOW);	UARTprintf("DCFWINDOW = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCFWINDOW,(Uint32)EPwm1Regs.DCFWINDOW);
+	addr = &(EPwm1Regs.DCFWINDOWCNT);	btoa(string,EPwm1Regs.DCFWINDOWCNT);	UARTprintf("DCFWINDOWCNT = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCFWINDOWCNT,(Uint32)EPwm1Regs.DCFWINDOWCNT);
+	addr = &(EPwm1Regs.DCCAP);	btoa(string,EPwm1Regs.DCCAP);	UARTprintf("DCCAP = (0x%x) \t%s.b = %u = 0x%x\r\n",(Uint32)addr,string,(Uint32)EPwm1Regs.DCCAP,(Uint32)EPwm1Regs.DCCAP);
+
+
+
+	return 1;
+}
 
 int Cmd_LED_Freq(int argc,char *argv[])
 {
@@ -140,6 +202,7 @@ tCmdLineEntry g_sCmdTable[] =
     { "blink",  Cmd_blink,     " : Blink the LED"},
     { "ledf",  Cmd_LED_Freq,   " : Set LED blinking frequency"},
     { "gr",    Cmd_Get_Reg,    " : Get Register"},
+    { "gp",    Cmd_Get_PWM_Regs,    " : Print PWM Registers"},
     { 0, 0, 0 }
 };
 

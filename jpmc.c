@@ -151,7 +151,7 @@ void init(void)
 	ERTM;   // Enable Global realtime interrupt DBGM
 
 	// Intialize UART(INT_SCIRXINTA, UARTStdioIntHandler);
-	UARTStdioInitExpClk(0,9600);
+	UARTStdioInitExpClk(0,115200);
 
 	// Enable Sci tx and rx interupts within Sci control register
 	SciaRegs.SCICTL2.bit.TXINTENA = 1;
