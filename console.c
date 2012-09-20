@@ -18,13 +18,14 @@
 #include "F2806x_Gpio.h"               // General Purpose I/O Registers
 #include "F2806x_CpuTimers.h"          // 32-bit CPU Timers
 #include "F2806x_EPwm.h"               // Enhanced PWM
+#include "F2806x_Adc.h"                // ADC Registers
 
 
 #define MAX_COMMAND_LENGTH	32
 //#define DEBUG
 
 extern float Freq;   // frequency of timer0 interrupt in Hz
-
+extern unsigned long adc;
 
 void btoa(char *string, unsigned int var);      // convert 16bit variable into a string
 
@@ -129,7 +130,7 @@ int Cmd_help(int argc, char *argv[])
 
     // Enter a loop to read each entry from the command table.  The end of the
     // table has been reached when the command name is NULL.
-    while(pEntry->pcCmd)
+    while(pEntry->pcCmd != 0)
     {
         // Print the command name and the brief description.
         UARTprintf("%s%s\n", pEntry->pcCmd, pEntry->pcHelp);
@@ -195,15 +196,22 @@ int Cmd_Get_Reg(int argc, char *argv[])
 //	return 1;
 //}
 
+int Cmd_trigger_adc(int argc,char *argv[])
+{
+	AdcRegs.ADCSOCFRC1.bit.SOC1 = 1;
+	UARTprintf("ADC Triggered!\r\n");
+	return 0;
+}
 
 tCmdLineEntry g_sCmdTable[] =
 {
-    { "help",   Cmd_help,      " : Display list of commands" },
-    { "blink",  Cmd_blink,     " : Blink the LED"},
-    { "ledf",  Cmd_LED_Freq,   " : Set LED blinking frequency"},
-    { "gr",    Cmd_Get_Reg,    " : Get Register"},
-    { "gp",    Cmd_Get_PWM_Regs,    " : Print PWM Registers"},
-    { 0, 0, 0 }
+	{"help",Cmd_help," : Display list of commands"},
+    {"blink",Cmd_blink," : Blink the LED"},
+    {"ledf",Cmd_LED_Freq," : Set LED blinking frequency"},
+    {"gr",Cmd_Get_Reg," : Get Register"},
+    {"gp",Cmd_Get_PWM_Regs," : Print PWM Registers"},
+    {"adc",Cmd_trigger_adc," : Trigger SOC for ADC A0"},
+    {0,0,0}
 };
 
 

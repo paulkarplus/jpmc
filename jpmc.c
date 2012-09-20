@@ -9,6 +9,7 @@
 // 0.02		8/15/2012	PK				Moved dispatch_console command to the SCIA rx interrupt. Added a command line function that blinks the LED on the controlStick. Cleaned up and commented code.
 // 0.03		8/16/2012	Jut				Added command to set led blink frequency
 // 0.04		8/18/2012	Jut				Added command to get value at any data memory location.  Added UART color defines.
+// 0.05		9/20/2012	PK				Added command to get adc value from A0 channel. ADC conversion is forced and then the adc value is stored in an interrupt
 //###########################################################################
 #define REV "0.04"
 
@@ -52,11 +53,13 @@ __interrupt void cpu_timer0_isr(void);
 __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void scia_rx_isr(void);					// sci receive interrupt function
+__interrupt void adc_isr(void);
 void init(void);
+void Adc_Config(void);
 
 // Initialize global variables for this file
 float Freq = 1;   // frequency of timer0 interrupt in Hz
-
+unsigned long adc = 0;
 
 void main(void)
 {
@@ -115,10 +118,14 @@ void init(void)
 	PieVectTable.TINT1 = &cpu_timer1_isr;
 	PieVectTable.TINT2 = &cpu_timer2_isr;
 	PieVectTable.SCIRXINTA = &scia_rx_isr;		// SciA rx interrupt
+	PieVectTable.ADCINT1 = &adc_isr;
 	EDIS;    // This is needed to disable write to EALLOW protected registers
+
+
 
 	// Step 4. Initialize the Device Peripheral.
 	InitCpuTimers();   // For this file, only initialize the Cpu Timers
+	InitAdc();  // For this example, init the ADC
 
 	// Configure CPU-Timer 0, 1, and 2 to interrupt every second:
 	// 80MHz CPU Freq, 1 second Period (in uSeconds)
@@ -144,7 +151,7 @@ void init(void)
 	// Enable individual PIE Table interrupts
 	PieCtrlRegs.PIEIER1.bit.INTx7 = 1;		// Enable TINT0 in the PIE: Group 1 interrupt 7
     PieCtrlRegs.PIEIER9.bit.INTx1 = 1;		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1
-
+    PieCtrlRegs.PIEIER1.bit.INTx1 = 1;		// Enable INT 1.1 in the PIE
 
 	// Enable global Interrupts and higher priority real-time debug events:
 	EINT;   // Enable Global interrupt INTM
@@ -157,6 +164,9 @@ void init(void)
 	SciaRegs.SCICTL2.bit.TXINTENA = 1;
 	SciaRegs.SCICTL2.bit.RXBKINTENA = 1;
 
+	// Configure ADC
+	Adc_Config();
+
 	// Setup LED on GPIO-34 for Sci blink command. LED is toggled by blink command is sent.
 	EALLOW;
 	GpioCtrlRegs.GPBMUX1.bit.GPIO34 = 0;	// 0=GPIO,  1=COMP2OUT,  2=EMU1,  3=Resv
@@ -166,6 +176,44 @@ void init(void)
 	EDIS;
 }
 
+void Adc_Config(void)
+{
+	// Configure ADC
+		EALLOW;
+		AdcRegs.ADCCTL2.bit.ADCNONOVERLAP = 1;	// Enable non-overlap mode
+		AdcRegs.ADCCTL1.bit.INTPULSEPOS	= 1;	// ADCINT1 trips after AdcResults latch
+		AdcRegs.INTSEL1N2.bit.INT1E     = 1;	// Enabled ADCINT1
+		AdcRegs.INTSEL1N2.bit.INT1CONT  = 0;	// Disable ADCINT1 Continuous mode
+		AdcRegs.INTSEL1N2.bit.INT1SEL 	= 1;    // setup EOC1 to trigger ADCINT1 to fire
+		AdcRegs.ADCSOC1CTL.bit.CHSEL 	= 0;    // set SOC1 channel select to ADCINA2
+		AdcRegs.ADCSOC1CTL.bit.TRIGSEL 	= 0;    // set SOC1 start trigger on EPWM1A, due to round-robin SOC0 converts first then SOC1
+		AdcRegs.ADCSOC1CTL.bit.ACQPS 	= 10;	// set SOC1 S/H Window to 11 ADC Clock Cycles, (10 ACQPS plus 1)
+		EDIS;
+/*	// Configure ADC
+	EALLOW;
+	AdcRegs.ADCCTL2.bit.ADCNONOVERLAP = 1;	// Enable non-overlap mode
+	AdcRegs.ADCCTL1.bit.INTPULSEPOS	= 1;	// ADCINT1 trips after AdcResults latch
+	AdcRegs.INTSEL1N2.bit.INT1E     = 1;	// Enabled ADCINT1
+	AdcRegs.INTSEL1N2.bit.INT1CONT  = 0;	// Disable ADCINT1 Continuous mode
+	AdcRegs.INTSEL1N2.bit.INT1SEL 	= 1;    // setup EOC1 to trigger ADCINT1 to fire
+	AdcRegs.ADCSOC0CTL.bit.CHSEL 	= 0;    // set SOC0 channel to A0
+	AdcRegs.ADCSOC0CTL.bit.TRIGSEL 	= 0;    // set SOC0 will trigger only on software
+	AdcRegs.ADCSOC0CTL.bit.ACQPS 	= 10;	// set SOC0 S/H Window to 11 ADC Clock Cycles, (10 ACQPS plus 1)
+	EDIS;
+*/
+}
+// ADC interrupt function
+__interrupt void  adc_isr(void)
+{
+
+  adc = AdcResult.ADCRESULT1;
+  UARTprintf("ADC Value = %u\r\n",adc);
+
+  AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;		//Clear ADCINT1 flag reinitialize for next SOC
+  PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;   // Acknowledge interrupt to PIE
+
+  return;
+}
 // Sci rx interrupt function.
 __interrupt void scia_rx_isr(void)
 {
