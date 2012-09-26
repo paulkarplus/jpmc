@@ -10,6 +10,7 @@
 // 0.03		8/16/2012	Jut				Added command to set led blink frequency
 // 0.04		8/18/2012	Jut				Added command to get value at any data memory location.  Added UART color defines.
 // 0.05		9/20/2012	PK				Added command to get adc value from A0 channel. ADC conversion is forced and then the adc value is stored in an interrupt
+// 0.06		9/26/2012	PK				Added command to set deadtime, dutycycle, and freq for ePWM1. Also made a sinePWM command that turns on sine wave generation. sinefreq adjusts the frequency of the sine wave and sinemag adjusts the magnitude.
 //###########################################################################
 #define REV "0.04"
 
@@ -26,6 +27,7 @@
 #include "console.h"
 #include "utils/uartstdio.h"
 #include "uartcolors.h"
+#include "math.h"
 
 
 #include "F2806x_Adc.h"                // ADC Registers
@@ -54,12 +56,22 @@ __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void scia_rx_isr(void);					// sci receive interrupt function
 __interrupt void adc_isr(void);
+__interrupt void epwm1_timer_isr(void);
+
+void InitEPwm(void);
 void init(void);
 void Adc_Config(void);
 
 // Initialize global variables for this file
 float Freq = 1;   // frequency of timer0 interrupt in Hz
 unsigned long adc = 0;
+float Dead_Time_ns = 100;
+float PWM_Freq = 20;		// PWM Frequency in kHz
+float PWM_Duty_Cycle = .8;	// PWM Duty Cycle
+Uint32 PWM_Counter = 0;
+char Sine_PWM = 0;
+float Sine_Freq = 100; 		// Sine PWM Frequency in Hz
+float Sine_Mag = .5;        // Magnitude of Sine PWM (0-1)
 
 void main(void)
 {
@@ -91,6 +103,8 @@ void init(void)
 	// Initialize Sci GPIO
 	InitSciaGpio();
 
+
+
 	// Clear all interupts and initialize PIE vector table. Disable CPU interrupts
 	DINT;
 
@@ -119,9 +133,10 @@ void init(void)
 	PieVectTable.TINT2 = &cpu_timer2_isr;
 	PieVectTable.SCIRXINTA = &scia_rx_isr;		// SciA rx interrupt
 	PieVectTable.ADCINT1 = &adc_isr;
+	PieVectTable.EPWM1_INT = &epwm1_timer_isr;
 	EDIS;    // This is needed to disable write to EALLOW protected registers
 
-
+	InitEPwm();    // For this example, only initialize the ePWM Timer
 
 	// Step 4. Initialize the Device Peripheral.
 	InitCpuTimers();   // For this file, only initialize the Cpu Timers
@@ -147,11 +162,13 @@ void init(void)
 	IER |= M_INT9;    // enable group 9 interrupts (scia rx and tx)
 	IER |= M_INT13;   // enable group 13 interrupts
 	IER |= M_INT14;   // enable group 14 interrupts
+	IER |= M_INT3;
 
 	// Enable individual PIE Table interrupts
 	PieCtrlRegs.PIEIER1.bit.INTx7 = 1;		// Enable TINT0 in the PIE: Group 1 interrupt 7
     PieCtrlRegs.PIEIER9.bit.INTx1 = 1;		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1
     PieCtrlRegs.PIEIER1.bit.INTx1 = 1;		// Enable INT 1.1 in the PIE
+    PieCtrlRegs.PIEIER3.bit.INTx1 = 1;		// Enable EPWM INTn in the PIE: Group 3 interrupt 1-6
 
 	// Enable global Interrupts and higher priority real-time debug events:
 	EINT;   // Enable Global interrupt INTM
@@ -202,6 +219,114 @@ void Adc_Config(void)
 	EDIS;
 */
 }
+void InitEPwm()
+{
+
+   EALLOW;
+   SysCtrlRegs.PCLKCR0.bit.TBCLKSYNC = 0;      // Stop all the TB clocks in order to synchronize clocks and configure ePWM modules
+   // LOW SPEED CLOCKS prescale register settings
+   SysCtrlRegs.LOSPCP.all = 0x0002;		// Sysclk / 4 (20 MHz)
+   SysCtrlRegs.XCLK.bit.XCLKOUTDIV=2;
+   SysCtrlRegs.PCLKCR1.bit.EPWM1ENCLK = 1;  // ePWM1
+   SysCtrlRegs.PCLKCR0.bit.TBCLKSYNC = 1;   // Enable TB
+      //  GPIO-00 - PIN FUNCTION = --Spare--
+      	GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+      	GpioCtrlRegs.GPADIR.bit.GPIO0 = 1;		// 1=OUTput,  0=INput
+      //	GpioDataRegs.GPACLEAR.bit.GPIO0 = 1;	// uncomment if --> Set Low initially
+      //	GpioDataRegs.GPASET.bit.GPIO0 = 1;		// uncomment if --> Set High initially
+          GpioCtrlRegs.GPAPUD.bit.GPIO0 = 0;      // Enable pull-up on GPIO0 (EPWM1A)
+      //--------------------------------------------------------------------------------------
+      //  GPIO-01 - PIN FUNCTION = --Spare--
+      	GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 1;		// 0=GPIO, 1=EPWM1B, 2=EMU (0), 3=COMP1OUT
+      	GpioCtrlRegs.GPADIR.bit.GPIO1 = 1;		// 1=OUTput,  0=INput
+      //	GpioDataRegs.GPACLEAR.bit.GPIO1 = 1;	// uncomment if --> Set Low initially
+      //	GpioDataRegs.GPASET.bit.GPIO1 = 1;		// uncomment if --> Set High initially
+      //--------------------------------------------------------------------------------------
+   EDIS;
+
+   // Initally disable Free/Soft Bits
+   EPwm1Regs.TBCTL.bit.FREE_SOFT = 0;
+   EPwm1Regs.ETSEL.bit.INTSEL = ET_CTR_ZERO;     	// Select INT on Zero event
+   EPwm1Regs.ETSEL.bit.INTEN = 1;  	// Enable INT
+   EPwm1Regs.ETPS.bit.INTPRD = ET_1ST;           	// Generate INT on 1st event
+   EPwm1Regs.AQCTLA.all = 0x0024;				   	// Action-qualifiers, Set on CMPA, Clear on PRD
+
+
+   // Time-base registers
+	EPwm1Regs.TBPRD = (Uint16)(80000/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
+	EPwm1Regs.TBPHS.all = 0;				   // Time-Base Phase Register
+	EPwm1Regs.TBCTR = 0;					   // Time-Base Counter Register
+    EPwm1Regs.TBCTL.bit.PRDLD = TB_IMMEDIATE;  // Set Immediate load
+    EPwm1Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count-up mode: used for asymmetric PWM
+   	EPwm1Regs.TBCTL.bit.PHSEN = TB_DISABLE;	   // Disable phase loading
+   	EPwm1Regs.TBCTL.bit.SYNCOSEL = TB_SYNC_DISABLE;
+   	EPwm1Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+   	EPwm1Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+
+	// Setup shadow register load on ZERO
+	EPwm1Regs.CMPCTL.bit.SHDWAMODE = CC_SHADOW;
+	EPwm1Regs.CMPCTL.bit.SHDWBMODE = CC_SHADOW;
+	EPwm1Regs.CMPCTL.bit.LOADAMODE = CC_CTR_ZERO;	// load on CTR=Zero
+	EPwm1Regs.CMPCTL.bit.LOADBMODE = CC_CTR_ZERO;	// load on CTR=Zero
+
+    // Set compare values
+    EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+
+    // Set actions
+    EPwm1Regs.AQCTLA.bit.ZRO = AQ_SET;            // Set PWM1A on Zero
+    EPwm1Regs.AQCTLA.bit.CAU = AQ_CLEAR;          // Clear PWM1A on event A, up count
+
+    EPwm1Regs.AQCTLB.bit.ZRO = AQ_CLEAR;          // Set PWM1B on Zero
+    EPwm1Regs.AQCTLB.bit.CBU = AQ_SET;            // Clear PWM1B on event B, up count
+
+    // DeadBand configuration
+   	EPwm1Regs.DBCTL.bit.IN_MODE = DBA_ALL;  		// EPwm1A is the source for both falling-edge and rising-edge delay
+   	EPwm1Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;  // Both the falling-edge delay (FED) and rising-edge delay (RED) are applied to the input signals
+   	EPwm1Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC; 		// Active High Complementary (AHC)
+
+   	// Set Deadband
+   	EPwm1Regs.DBRED = (Uint32)(Dead_Time_ns/12.5);					// Set DeadBand time for rising edge of ePWM1a. 12.5 = ns/clock cycle (@80Mhz)
+   	EPwm1Regs.DBFED = (Uint32)(Dead_Time_ns/12.5);;					// Set DeadBand time for falling edge of ePWM1a
+    EDIS;
+
+}
+
+// Interrupt routines uses in this example:
+__interrupt void epwm1_timer_isr(void)
+{
+	PWM_Counter++;
+	float period = 80000000.0/Sine_Freq;		// Period in Pulses
+	if (PWM_Counter == (Uint32)(period)) PWM_Counter = 0;
+	EDIS;
+	if(Sine_PWM == 1)
+	{
+		float dutycycle = Sine_Mag*(sin(2*3.14159*PWM_Counter/period)+1)/2;
+		// Set compare values
+		EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*dutycycle);    // Set duty 50% initially
+		// Set Deadband
+	} else {
+
+		// Set compare values
+		EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+		// Set Deadband
+	}
+	// Time-base registers
+	EPwm1Regs.TBPRD = (Uint16)(80000.0/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
+
+	EPwm1Regs.DBRED = (Uint32)(Dead_Time_ns/12.5);					// Set DeadBand time for rising edge of ePWM1a. 12.5 = ns/clock cycle (@80Mhz)
+	EPwm1Regs.DBFED = (Uint32)(Dead_Time_ns/12.5);				// Set DeadBand time for falling edge of ePWM1a
+	EDIS;
+
+
+    // Clear INT flag for this timer
+    EPwm1Regs.ETCLR.bit.INT = 1;
+
+
+
+   // Acknowledge this interrupt to receive more interrupts from group 3
+   PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
+}
+
 // ADC interrupt function
 __interrupt void  adc_isr(void)
 {

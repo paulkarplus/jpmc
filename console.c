@@ -19,13 +19,26 @@
 #include "F2806x_CpuTimers.h"          // 32-bit CPU Timers
 #include "F2806x_EPwm.h"               // Enhanced PWM
 #include "F2806x_Adc.h"                // ADC Registers
-
+#include "math.h"
+#include "stdlib.h"
 
 #define MAX_COMMAND_LENGTH	32
+#define COMMAND_BUFFER_LENGTH 5
 //#define DEBUG
 
 extern float Freq;   // frequency of timer0 interrupt in Hz
 extern unsigned long adc;
+extern float Dead_Time_ns;
+extern float PWM_Freq;		// PWM Frequency in kHz
+extern float PWM_Duty_Cycle;	// PWM Duty Cycle
+extern char Sine_PWM;
+extern float Sine_Freq; 		// Sine PWM Frequency in Hz
+extern float Sine_Mag;
+
+
+
+//char* Command_Buffer[COMMAND_BUFFER_LENGTH + 1] = {0};
+//int Buffer_Pointer = 0;
 
 void btoa(char *string, unsigned int var);      // convert 16bit variable into a string
 
@@ -203,14 +216,84 @@ int Cmd_trigger_adc(int argc,char *argv[])
 	return 0;
 }
 
+int Cmd_sine(int argC,char *argv[])
+{
+	double angle = atof(argv[1]);
+	UARTprintf("angle is : %u\r\n",(unsigned long)(angle*1000));
+	double sine_angle = sin(angle);
+	UARTprintf("sine of %u is : %u\r\n",(unsigned long)(angle*1000), (unsigned long)(sine_angle*1000));
+}
+int Cmd_deadtime(int argc,char *argv[])
+{
+	Dead_Time_ns = atof(argv[1]);
+	if (Dead_Time_ns > 300) Dead_Time_ns = 300;
+	if (Dead_Time_ns < 50) Dead_Time_ns = 50;
+	UARTprintf("Deadtime set!\r\n");
+	return 0;
+}
+int Cmd_dutycycle(int argc,char *argv[])
+{
+	PWM_Duty_Cycle = atof(argv[1])/100;
+	if (PWM_Duty_Cycle > 1) PWM_Duty_Cycle = 1;
+	if (PWM_Duty_Cycle < 0) PWM_Duty_Cycle = 0;
+	UARTprintf("Duty Cycle set!\r\n");
+	return 0;
+}
+int Cmd_pwmfreq(int argc,char *argv[])
+{
+	PWM_Freq = atof(argv[1]);
+	if (PWM_Freq > 100) PWM_Freq = 100;
+	if (PWM_Freq < 1) PWM_Freq = 1;
+	UARTprintf("PWM frequency set!\r\n");
+	return 0;
+}
+int Cmd_sinepwm(int argc,char *argv[])
+{
+	if (Sine_PWM == 0)
+	{
+		Sine_PWM = 1;
+		UARTprintf("Sine PWM On!\r\n");
+	} else {
+		if (Sine_PWM == 1)
+			{
+				Sine_PWM = 0;
+				UARTprintf("Sine PWM Off!\r\n");
+			}
+	}
+
+	return 0;
+}
+int Cmd_sinefreq(int argc,char *argv[])
+{
+	Sine_Freq = atof(argv[1]);
+	if (Sine_Freq > 1000) Sine_Freq = 1000;   // Frequency in Hz
+	if (Sine_Freq < 0) Sine_Freq = 0;
+	UARTprintf("Sine frequency set!\r\n");
+	return 0;
+}
+int Cmd_sinemag(int argc,char *argv[])
+{
+	Sine_Mag = atof(argv[1]);
+	if (Sine_Mag > 1) Sine_Mag = 1;   // Magnitude of PWM Sine Wave from 0-1
+	if (Sine_Mag < 0) Sine_Mag = 0;
+	UARTprintf("Sine magnitude set!\r\n");
+	return 0;
+}
 tCmdLineEntry g_sCmdTable[] =
 {
-	{"help",Cmd_help," : Display list of commands"},
-    {"blink",Cmd_blink," : Blink the LED"},
-    {"ledf",Cmd_LED_Freq," : Set LED blinking frequency"},
-    {"gr",Cmd_Get_Reg," : Get Register"},
-    {"gp",Cmd_Get_PWM_Regs," : Print PWM Registers"},
-    {"adc",Cmd_trigger_adc," : Trigger SOC for ADC A0"},
+	{"help",	Cmd_help,			" : Display list of commands"},
+    {"blink",	Cmd_blink,			" : Blink the LED"},
+    {"ledf",	Cmd_LED_Freq,		" : Set LED blinking frequency"},
+    {"gr",		Cmd_Get_Reg,		" : Get Register"},
+    {"gp",		Cmd_Get_PWM_Regs,	" : Print PWM Registers"},
+    {"adc",		Cmd_trigger_adc,	" : Trigger SOC for ADC A0"},
+    {"sine",	Cmd_sine,			" : Take the sine of a float"},
+    {"dt",      Cmd_deadtime,       " : Set the deadtime in ns"},
+    {"dc",      Cmd_dutycycle,      " : Set the PWM duty cycle"},
+    {"pwmfreq", Cmd_pwmfreq,        " : Set the PWM frequency"},
+    {"sinepwm", Cmd_sinepwm,        " : Set the PWM to output a sine function"},
+    {"sinefreq",Cmd_sinefreq,       " : Set the frequency of the PWM sine function"},
+    {"sinemag", Cmd_sinemag,        " : Set the magnitude of the PWM sine function (0-1)"},
     {0,0,0}
 };
 
@@ -247,9 +330,20 @@ void dispatch_console(void)
 	
 	if(get_command(command+length, MAX_COMMAND_LENGTH-length) == 0)
 	{
-//		strcpy(lastcmd,command);
-//		UARTprintf("command rxed:%s\r\n",command);
 		CmdLineProcess(command);
+		// Failed Buffering Routine PK 9.26.2012. Problem was that it would just copy the pointer location over and over again
+		/*if (Buffer_Pointer > COMMAND_BUFFER_LENGTH) {
+			unsigned int i;
+			for (i = 0; i < COMMAND_BUFFER_LENGTH; i++)
+			{
+				Command_Buffer[i] = Command_Buffer[i+1];
+			}
+			Buffer_Pointer = COMMAND_BUFFER_LENGTH;
+		}
+		char *last_command = command;
+		Command_Buffer[Buffer_Pointer] = command;
+		Buffer_Pointer++;
+		*/
 		memset(command, 0, sizeof(command));
 		UARTprintf("> ");
 	}
