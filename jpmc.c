@@ -63,15 +63,22 @@ void init(void);
 void Adc_Config(void);
 
 // Initialize global variables for this file
-float Freq = 1;   // frequency of timer0 interrupt in Hz
-unsigned long adc = 0;
-float Dead_Time_ns = 100;
+int32 current = 0;
+float Freq = .1;   // frequency of timer0 interrupt in Hz
+int32 adc = 0;
+Uint32 Dead_Time_ns = 2000;
 float PWM_Freq = 20;		// PWM Frequency in kHz
-float PWM_Duty_Cycle = .8;	// PWM Duty Cycle
+float PWM_Duty_Cycle = .3;	// PWM Duty Cycle
 Uint32 PWM_Counter = 0;
 char Sine_PWM = 0;
-float Sine_Freq = 100; 		// Sine PWM Frequency in Hz
+char hall_PWM = 0;
+float Sine_Freq = 10; 		// Sine PWM Frequency in Hz
 float Sine_Mag = .5;        // Magnitude of Sine PWM (0-1)
+int32 lasthallstate = 0;
+int32 hallstate = 0;
+int32 hallA = 0;
+int32 hallB = 0;
+int32 hallC = 0;
 
 void main(void)
 {
@@ -183,7 +190,18 @@ void init(void)
 
 	// Configure ADC
 	Adc_Config();
-
+    // Setup GPIO-16,17,18 for Hall Effect Sensor
+	EALLOW;
+	GpioCtrlRegs.GPAPUD.bit.GPIO16 = 0;    // Enable pull-up for GPIO28 (SCIRXDA)
+	GpioCtrlRegs.GPAMUX2.bit.GPIO16 = 0;
+	GpioCtrlRegs.GPADIR.bit.GPIO16 = 0;
+	GpioCtrlRegs.GPAPUD.bit.GPIO17 = 0;    // Enable pull-up for GPIO28 (SCIRXDA)
+	GpioCtrlRegs.GPAMUX2.bit.GPIO17 = 0;
+	GpioCtrlRegs.GPADIR.bit.GPIO17 = 0;
+	GpioCtrlRegs.GPAPUD.bit.GPIO18 = 0;    // Enable pull-up for GPIO28 (SCIRXDA)
+	GpioCtrlRegs.GPAMUX2.bit.GPIO18 = 0;
+	GpioCtrlRegs.GPADIR.bit.GPIO18 = 0;
+	EDIS;
 	// Setup LED on GPIO-34 for Sci blink command. LED is toggled by blink command is sent.
 	EALLOW;
 	GpioCtrlRegs.GPBMUX1.bit.GPIO34 = 0;	// 0=GPIO,  1=COMP2OUT,  2=EMU1,  3=Resv
@@ -228,26 +246,43 @@ void InitEPwm()
    SysCtrlRegs.LOSPCP.all = 0x0002;		// Sysclk / 4 (20 MHz)
    SysCtrlRegs.XCLK.bit.XCLKOUTDIV=2;
    SysCtrlRegs.PCLKCR1.bit.EPWM1ENCLK = 1;  // ePWM1
+   SysCtrlRegs.PCLKCR1.bit.EPWM2ENCLK = 1;  // ePWM2
+   SysCtrlRegs.PCLKCR1.bit.EPWM2ENCLK = 1;  // ePWM3
    SysCtrlRegs.PCLKCR0.bit.TBCLKSYNC = 1;   // Enable TB
-      //  GPIO-00 - PIN FUNCTION = --Spare--
-      	GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-      	GpioCtrlRegs.GPADIR.bit.GPIO0 = 1;		// 1=OUTput,  0=INput
-      //	GpioDataRegs.GPACLEAR.bit.GPIO0 = 1;	// uncomment if --> Set Low initially
-      //	GpioDataRegs.GPASET.bit.GPIO0 = 1;		// uncomment if --> Set High initially
-          GpioCtrlRegs.GPAPUD.bit.GPIO0 = 0;      // Enable pull-up on GPIO0 (EPWM1A)
-      //--------------------------------------------------------------------------------------
-      //  GPIO-01 - PIN FUNCTION = --Spare--
-      	GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 1;		// 0=GPIO, 1=EPWM1B, 2=EMU (0), 3=COMP1OUT
-      	GpioCtrlRegs.GPADIR.bit.GPIO1 = 1;		// 1=OUTput,  0=INput
-      //	GpioDataRegs.GPACLEAR.bit.GPIO1 = 1;	// uncomment if --> Set Low initially
-      //	GpioDataRegs.GPASET.bit.GPIO1 = 1;		// uncomment if --> Set High initially
-      //--------------------------------------------------------------------------------------
+  //  GPIO-00 - PIN FUNCTION = --Spare--
+	GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+	GpioCtrlRegs.GPADIR.bit.GPIO0 = 1;		// 1=OUTput,  0=INput
+	GpioCtrlRegs.GPAPUD.bit.GPIO0 = 1;      // Enable pull-up on GPIO0 (EPWM1A)
+	GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 1;		// 0=GPIO, 1=EPWM1B, 2=EMU (0), 3=COMP1OUT
+	GpioCtrlRegs.GPADIR.bit.GPIO1 = 1;		// 1=OUTput,  0=INput
+	GpioCtrlRegs.GPAPUD.bit.GPIO1 = 1;      // Enable pull-up on GPIO0 (EPWM1A)
+	GpioCtrlRegs.GPAMUX1.bit.GPIO2 = 1;		// 0=GPIO, 1=EPWM2A, 2=Resv, 3=Resv
+	GpioCtrlRegs.GPADIR.bit.GPIO2 = 1;		// 1=OUTput,  0=INput
+	GpioCtrlRegs.GPAPUD.bit.GPIO2 = 1;      // Enable pull-up on GPIO0 (EPWM1A)
+	GpioCtrlRegs.GPAMUX1.bit.GPIO3 = 1;		// 0=GPIO, 1=EPWM2B, 2=EMU (0), 3=COMP1OUT
+	GpioCtrlRegs.GPADIR.bit.GPIO3 = 1;		// 1=OUTput,  0=INput
+	GpioCtrlRegs.GPAPUD.bit.GPIO3 = 1;      // Enable pull-up on GPIO0 (EPWM1A)
+	GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 1;		// 0=GPIO, 1=EPWM3B, 2=EMU (0), 3=COMP1OUT
+	GpioCtrlRegs.GPADIR.bit.GPIO4 = 1;		// 1=OUTput,  0=INput
+	GpioCtrlRegs.GPAPUD.bit.GPIO4 = 1;      // Enable pull-up on GPIO0 (EPWM1A)
+	GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 1;		// 0=GPIO, 1=EPWM3B, 2=EMU (0), 3=COMP1OUT
+	GpioCtrlRegs.GPADIR.bit.GPIO5 = 1;		// 1=OUTput,  0=INput
+	GpioCtrlRegs.GPAPUD.bit.GPIO5 = 1;      // Enable pull-up on GPIO0 (EPWM1A)
+  //	GpioDataRegs.GPACLEAR.bit.GPIO0 = 1;	// uncomment if --> Set Low initially
+  //	GpioDataRegs.GPASET.bit.GPIO0 = 1;		// uncomment if --> Set High initially
+
+  //--------------------------------------------------------------------------------------
+  //  GPIO-01 - PIN FUNCTION = --Spare--
+
+  //	GpioDataRegs.GPACLEAR.bit.GPIO1 = 1;	// uncomment if --> Set Low initially
+  //	GpioDataRegs.GPASET.bit.GPIO1 = 1;		// uncomment if --> Set High initially
+  //--------------------------------------------------------------------------------------
    EDIS;
 
    // Initally disable Free/Soft Bits
    EPwm1Regs.TBCTL.bit.FREE_SOFT = 0;
    EPwm1Regs.ETSEL.bit.INTSEL = ET_CTR_ZERO;     	// Select INT on Zero event
-   EPwm1Regs.ETSEL.bit.INTEN = 1;  	// Enable INT
+   EPwm1Regs.ETSEL.bit.INTEN = 1;  					// Enable INT
    EPwm1Regs.ETPS.bit.INTPRD = ET_1ST;           	// Generate INT on 1st event
    EPwm1Regs.AQCTLA.all = 0x0024;				   	// Action-qualifiers, Set on CMPA, Clear on PRD
 
@@ -263,6 +298,28 @@ void InitEPwm()
    	EPwm1Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
    	EPwm1Regs.TBCTL.bit.CLKDIV = TB_DIV1;
 
+    // Time-base registers
+ 	EPwm2Regs.TBPRD = (Uint16)(80000/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
+ 	EPwm2Regs.TBPHS.all = 0;				   // Time-Base Phase Register
+ 	EPwm2Regs.TBCTR = 0;					   // Time-Base Counter Register
+	EPwm2Regs.TBCTL.bit.PRDLD = TB_IMMEDIATE;  // Set Immediate load
+	EPwm2Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count-up mode: used for asymmetric PWM
+	EPwm2Regs.TBCTL.bit.PHSEN = TB_DISABLE;	   // Disable phase loading
+	EPwm2Regs.TBCTL.bit.SYNCOSEL = TB_SYNC_DISABLE;
+	EPwm2Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+	EPwm2Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+
+    // Time-base registers
+ 	EPwm3Regs.TBPRD = (Uint16)(80000/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
+ 	EPwm3Regs.TBPHS.all = 0;				   // Time-Base Phase Register
+ 	EPwm3Regs.TBCTR = 0;					   // Time-Base Counter Register
+	EPwm3Regs.TBCTL.bit.PRDLD = TB_IMMEDIATE;  // Set Immediate load
+	EPwm3Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count-up mode: used for asymmetric PWM
+	EPwm3Regs.TBCTL.bit.PHSEN = TB_DISABLE;	   // Disable phase loading
+	EPwm3Regs.TBCTL.bit.SYNCOSEL = TB_SYNC_DISABLE;
+	EPwm3Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+	EPwm3Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+
 	// Setup shadow register load on ZERO
 	EPwm1Regs.CMPCTL.bit.SHDWAMODE = CC_SHADOW;
 	EPwm1Regs.CMPCTL.bit.SHDWBMODE = CC_SHADOW;
@@ -271,6 +328,8 @@ void InitEPwm()
 
     // Set compare values
     EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+    EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+    EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
 
     // Set actions
     EPwm1Regs.AQCTLA.bit.ZRO = AQ_SET;            // Set PWM1A on Zero
@@ -279,14 +338,41 @@ void InitEPwm()
     EPwm1Regs.AQCTLB.bit.ZRO = AQ_CLEAR;          // Set PWM1B on Zero
     EPwm1Regs.AQCTLB.bit.CBU = AQ_SET;            // Clear PWM1B on event B, up count
 
+    EPwm2Regs.AQCTLA.bit.ZRO = AQ_SET;            // Set PWM2A on Zero
+    EPwm2Regs.AQCTLA.bit.CAU = AQ_CLEAR;          // Clear PWM2A on event A, up count
+
+    EPwm2Regs.AQCTLB.bit.ZRO = AQ_CLEAR;          // Set PWM2B on Zero
+    EPwm2Regs.AQCTLB.bit.CBU = AQ_SET;            // Clear PWM2B on event B, up count
+
+    EPwm3Regs.AQCTLA.bit.ZRO = AQ_SET;            // Set PWM3A on Zero
+    EPwm3Regs.AQCTLA.bit.CAU = AQ_CLEAR;          // Clear PWM3A on event A, up count
+
+    EPwm3Regs.AQCTLB.bit.ZRO = AQ_CLEAR;          // Set PWM3B on Zero
+    EPwm3Regs.AQCTLB.bit.CBU = AQ_SET;            // Clear PWM3B on event B, up count
+
     // DeadBand configuration
    	EPwm1Regs.DBCTL.bit.IN_MODE = DBA_ALL;  		// EPwm1A is the source for both falling-edge and rising-edge delay
    	EPwm1Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;  // Both the falling-edge delay (FED) and rising-edge delay (RED) are applied to the input signals
    	EPwm1Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC; 		// Active High Complementary (AHC)
 
+   	EPwm2Regs.DBCTL.bit.IN_MODE = DBA_ALL;  		// EPwm2A is the source for both falling-edge and rising-edge delay
+   	EPwm2Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;  // Both the falling-edge delay (FED) and rising-edge delay (RED) are applied to the input signals
+   	EPwm2Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC; 		// Active High Complementary (AHC)
+
+   	EPwm3Regs.DBCTL.bit.IN_MODE = DBA_ALL;  		// EPwm3A is the source for both falling-edge and rising-edge delay
+   	EPwm3Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;  // Both the falling-edge delay (FED) and rising-edge delay (RED) are applied to the input signals
+   	EPwm3Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC; 		// Active High Complementary (AHC)
+
    	// Set Deadband
-   	EPwm1Regs.DBRED = (Uint32)(Dead_Time_ns/12.5);					// Set DeadBand time for rising edge of ePWM1a. 12.5 = ns/clock cycle (@80Mhz)
-   	EPwm1Regs.DBFED = (Uint32)(Dead_Time_ns/12.5);;					// Set DeadBand time for falling edge of ePWM1a
+   	EPwm1Regs.DBRED = (100);					// Set DeadBand time for rising edge of ePWM1a. 12.5 = ns/clock cycle (@80Mhz)
+   	EPwm1Regs.DBFED = (100);;					// Set DeadBand time for falling edge of ePWM1a
+
+   	EPwm2Regs.DBRED = (100);					// Set DeadBand time for rising edge of ePWM2a. 12.5 = ns/clock cycle (@80Mhz)
+   	EPwm2Regs.DBFED = (100);;					// Set DeadBand time for falling edge of ePWM2a
+
+   	EPwm3Regs.DBRED = (100);					// Set DeadBand time for rising edge of ePWM3a. 12.5 = ns/clock cycle (@80Mhz)
+   	EPwm3Regs.DBFED = (100);;					// Set DeadBand time for falling edge of ePWM3a
+
     EDIS;
 
 }
@@ -295,26 +381,102 @@ void InitEPwm()
 __interrupt void epwm1_timer_isr(void)
 {
 	PWM_Counter++;
+	// Measure Hall State
+	hallA = GpioDataRegs.GPADAT.bit.GPIO16;
+	hallB = GpioDataRegs.GPADAT.bit.GPIO17;
+	hallC = GpioDataRegs.GPADAT.bit.GPIO18;
+	hallstate = hallA+hallB*2+hallC*4;
+
+	// Start ADC current conversion
+	AdcRegs.ADCSOCFRC1.bit.SOC1 = 1;
 	float period = 80000000.0/Sine_Freq;		// Period in Pulses
 	if (PWM_Counter == (Uint32)(period)) PWM_Counter = 0;
-	EDIS;
+	EALLOW;
 	if(Sine_PWM == 1)
 	{
-		float dutycycle = Sine_Mag*(sin(2*3.14159*PWM_Counter/period)+1)/2;
+		float dutycycle_A = Sine_Mag*(sin(2*3.14159*PWM_Counter*100/period+2*3.14159/3)+1)/2;
+		float dutycycle_B = Sine_Mag*(sin(2*3.14159*PWM_Counter*100/period)+1)/2;
+		float dutycycle_C = Sine_Mag*(sin(2*3.14159*PWM_Counter*100/period+4*3.14159/3)+1)/2;
 		// Set compare values
-		EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*dutycycle);    // Set duty 50% initially
+		EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*dutycycle_A);    // Set duty 50% initially
+	    EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*dutycycle_B);    // Set duty 50% initially
+	    EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*dutycycle_C);    // Set duty 50% initially
 		// Set Deadband
 	} else {
-
-		// Set compare values
-		EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
-		// Set Deadband
+		if(hall_PWM == 1)
+		{
+			//GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+			//GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+			//GpioCtrlRegs.GPAMUX1.bit.GPIO2 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+			//GpioCtrlRegs.GPAMUX1.bit.GPIO3 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+			//GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+			//GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+			if (hallstate == 4) {
+				EPwm2Regs.AQCSFRC.bit.CSFA = 1;
+				EPwm2Regs.AQCSFRC.bit.CSFB = 1;
+				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+				//EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+			}
+			if (hallstate == 6) {
+				//EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+				GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioDataRegs.GPASET.bit.GPIO0 = 0;
+				GpioDataRegs.GPASET.bit.GPIO1 = 0;
+				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+			}
+			if (hallstate == 2) {
+				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+				//EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+				GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioDataRegs.GPASET.bit.GPIO4 = 0;
+				GpioDataRegs.GPASET.bit.GPIO5 = 0;
+			}
+			if (hallstate == 3) {
+				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+				//EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+				GpioCtrlRegs.GPAMUX1.bit.GPIO2 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioCtrlRegs.GPAMUX1.bit.GPIO3 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioDataRegs.GPASET.bit.GPIO2 = 0;
+				GpioDataRegs.GPASET.bit.GPIO3 = 0;
+				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+			}
+			if (hallstate == 1) {
+				//EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+				GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioDataRegs.GPASET.bit.GPIO0 = 0;
+				GpioDataRegs.GPASET.bit.GPIO1 = 0;
+				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+			}
+			if (hallstate == 5) {
+				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+				GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
+				GpioDataRegs.GPASET.bit.GPIO4 = 0;
+				GpioDataRegs.GPASET.bit.GPIO5 = 0;
+				//EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+			}
+		} else {
+			// Set compare values
+			EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+			EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+			EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+		}
 	}
 	// Time-base registers
 	EPwm1Regs.TBPRD = (Uint16)(80000.0/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
+	EPwm2Regs.TBPRD = (Uint16)(80000.0/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
+	EPwm3Regs.TBPRD = (Uint16)(80000.0/PWM_Freq);       		   // Set timer period, System clock is 80Mhz and PWM_Freq is in Khz
 
-	EPwm1Regs.DBRED = (Uint32)(Dead_Time_ns/12.5);					// Set DeadBand time for rising edge of ePWM1a. 12.5 = ns/clock cycle (@80Mhz)
-	EPwm1Regs.DBFED = (Uint32)(Dead_Time_ns/12.5);				// Set DeadBand time for falling edge of ePWM1a
+	//EPwm1Regs.DBRED = (Dead_Time_ns/12.5);					// Set DeadBand time for rising edge of ePWM1a. 12.5 = ns/clock cycle (@80Mhz)
+	//EPwm1Regs.DBFED = (Dead_Time_ns/12.5);				// Set DeadBand time for falling edge of ePWM1a
 	EDIS;
 
 
@@ -332,7 +494,9 @@ __interrupt void  adc_isr(void)
 {
 
   adc = AdcResult.ADCRESULT1;
-  UARTprintf("ADC Value = %u\r\n",adc);
+  //current = adc;
+  current = (-1*adc*7388)/1000+15175;
+  //UARTprintf("ADC Value = %u\r\n",adc);
 
   AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;		//Clear ADCINT1 flag reinitialize for next SOC
   PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;   // Acknowledge interrupt to PIE
@@ -352,7 +516,8 @@ __interrupt void cpu_timer0_isr(void)
    CpuTimer0.InterruptCount++;
 //   UARTprintf("cpu_timer0_isr %u\r\n",CpuTimer0.InterruptCount);
    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
-
+   UARTprintf("Current Value, %d\r\n",current);
+   UARTprintf("ADC Value, %d\r\n",adc);
 
 
 //   if(SciaRegs.SCIFFRX.bit.RXFFINT)

@@ -27,11 +27,13 @@
 //#define DEBUG
 
 extern float Freq;   // frequency of timer0 interrupt in Hz
+extern int32 current;
 extern unsigned long adc;
 extern float Dead_Time_ns;
 extern float PWM_Freq;		// PWM Frequency in kHz
 extern float PWM_Duty_Cycle;	// PWM Duty Cycle
 extern char Sine_PWM;
+extern char hall_PWM;
 extern float Sine_Freq; 		// Sine PWM Frequency in Hz
 extern float Sine_Mag;
 
@@ -211,8 +213,8 @@ int Cmd_Get_Reg(int argc, char *argv[])
 
 int Cmd_trigger_adc(int argc,char *argv[])
 {
-	AdcRegs.ADCSOCFRC1.bit.SOC1 = 1;
 	UARTprintf("ADC Triggered!\r\n");
+	UARTprintf("ADC Value = %u\r\n",current);
 	return 0;
 }
 
@@ -266,7 +268,7 @@ int Cmd_sinepwm(int argc,char *argv[])
 int Cmd_sinefreq(int argc,char *argv[])
 {
 	Sine_Freq = atof(argv[1]);
-	if (Sine_Freq > 1000) Sine_Freq = 1000;   // Frequency in Hz
+	if (Sine_Freq > 10000) Sine_Freq = 10000;   // Frequency in Hz
 	if (Sine_Freq < 0) Sine_Freq = 0;
 	UARTprintf("Sine frequency set!\r\n");
 	return 0;
@@ -277,6 +279,22 @@ int Cmd_sinemag(int argc,char *argv[])
 	if (Sine_Mag > 1) Sine_Mag = 1;   // Magnitude of PWM Sine Wave from 0-1
 	if (Sine_Mag < 0) Sine_Mag = 0;
 	UARTprintf("Sine magnitude set!\r\n");
+	return 0;
+}
+int Cmd_hallpwm(int argc,char *argv[])
+{
+	if (hall_PWM == 0)
+	{
+		hall_PWM = 1;
+		UARTprintf("hall PWM On!\r\n");
+	} else {
+		if (hall_PWM == 1)
+			{
+				hall_PWM = 0;
+				UARTprintf("hall PWM Off!\r\n");
+			}
+	}
+
 	return 0;
 }
 tCmdLineEntry g_sCmdTable[] =
@@ -294,6 +312,7 @@ tCmdLineEntry g_sCmdTable[] =
     {"sinepwm", Cmd_sinepwm,        " : Set the PWM to output a sine function"},
     {"sinefreq",Cmd_sinefreq,       " : Set the frequency of the PWM sine function"},
     {"sinemag", Cmd_sinemag,        " : Set the magnitude of the PWM sine function (0-1)"},
+    {"hallpwm", Cmd_hallpwm,        " : Set the PWM to sync with hall signals"},
     {0,0,0}
 };
 
