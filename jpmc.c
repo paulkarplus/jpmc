@@ -71,7 +71,7 @@ float PWM_Freq = 20;		// PWM Frequency in kHz
 float PWM_Duty_Cycle = .3;	// PWM Duty Cycle
 Uint32 PWM_Counter = 0;
 char Sine_PWM = 0;
-char hall_PWM = 0;
+char hall_PWM = 1;
 float Sine_Freq = 10; 		// Sine PWM Frequency in Hz
 float Sine_Mag = .5;        // Magnitude of Sine PWM (0-1)
 int32 lasthallstate = 0;
@@ -192,13 +192,13 @@ void init(void)
 	Adc_Config();
     // Setup GPIO-16,17,18 for Hall Effect Sensor
 	EALLOW;
-	GpioCtrlRegs.GPAPUD.bit.GPIO16 = 0;    // Enable pull-up for GPIO28 (SCIRXDA)
+	GpioCtrlRegs.GPAPUD.bit.GPIO16 = 0;
 	GpioCtrlRegs.GPAMUX2.bit.GPIO16 = 0;
 	GpioCtrlRegs.GPADIR.bit.GPIO16 = 0;
-	GpioCtrlRegs.GPAPUD.bit.GPIO17 = 0;    // Enable pull-up for GPIO28 (SCIRXDA)
+	GpioCtrlRegs.GPAPUD.bit.GPIO17 = 0;
 	GpioCtrlRegs.GPAMUX2.bit.GPIO17 = 0;
 	GpioCtrlRegs.GPADIR.bit.GPIO17 = 0;
-	GpioCtrlRegs.GPAPUD.bit.GPIO18 = 0;    // Enable pull-up for GPIO28 (SCIRXDA)
+	GpioCtrlRegs.GPAPUD.bit.GPIO18 = 0;
 	GpioCtrlRegs.GPAMUX2.bit.GPIO18 = 0;
 	GpioCtrlRegs.GPADIR.bit.GPIO18 = 0;
 	EDIS;
@@ -405,64 +405,60 @@ __interrupt void epwm1_timer_isr(void)
 	} else {
 		if(hall_PWM == 1)
 		{
-			//GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-			//GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-			//GpioCtrlRegs.GPAMUX1.bit.GPIO2 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-			//GpioCtrlRegs.GPAMUX1.bit.GPIO3 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-			//GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-			//GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 1;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-			if (hallstate == 4) {
-				EPwm2Regs.AQCSFRC.bit.CSFA = 1;
-				EPwm2Regs.AQCSFRC.bit.CSFB = 1;
-				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
-				//EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
-				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+			switch (hallstate)
+			{
+				case 6:
+					//EPwm2Regs.AQCSFRC.bit.CSFA = 1;
+					//EPwm2Regs.AQCSFRC.bit.CSFB = 1;
+					GpioCtrlRegs.GPAMUX1.all = 0x505;
+					GpioDataRegs.GPASET.bit.GPIO2 = 0;
+					GpioDataRegs.GPASET.bit.GPIO3 = 0;
+					EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+					//EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+					EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+					break;
+				case 2:
+					GpioCtrlRegs.GPAMUX1.all = 0x550;
+					GpioDataRegs.GPASET.bit.GPIO0 = 0;
+					GpioDataRegs.GPASET.bit.GPIO1 = 0;
+					//EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+					EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+					EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+					break;
+				case 3:
+					GpioCtrlRegs.GPAMUX1.all = 0x055;
+					GpioDataRegs.GPASET.bit.GPIO4 = 0;
+					GpioDataRegs.GPASET.bit.GPIO5 = 0;
+					EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+					EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+					//EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+					break;
+				case 1:
+					GpioCtrlRegs.GPAMUX1.all = 0x505;
+					GpioDataRegs.GPASET.bit.GPIO2 = 0;
+					GpioDataRegs.GPASET.bit.GPIO3 = 0;
+					EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+					//EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+					EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+					break;
+				case 5:
+					GpioCtrlRegs.GPAMUX1.all = 0x550;
+					GpioDataRegs.GPASET.bit.GPIO0 = 0;
+					GpioDataRegs.GPASET.bit.GPIO1 = 0;
+					//EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+					EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+					EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+					break;
+				case 4:
+					GpioCtrlRegs.GPAMUX1.all = 0x055;
+					GpioDataRegs.GPASET.bit.GPIO4 = 0;
+					GpioDataRegs.GPASET.bit.GPIO5 = 0;
+					EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
+					EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
+					//EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
+					break;
 			}
-			if (hallstate == 6) {
-				//EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
-				GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioDataRegs.GPASET.bit.GPIO0 = 0;
-				GpioDataRegs.GPASET.bit.GPIO1 = 0;
-				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
-				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
-			}
-			if (hallstate == 2) {
-				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
-				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
-				//EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
-				GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioDataRegs.GPASET.bit.GPIO4 = 0;
-				GpioDataRegs.GPASET.bit.GPIO5 = 0;
-			}
-			if (hallstate == 3) {
-				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
-				//EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
-				GpioCtrlRegs.GPAMUX1.bit.GPIO2 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioCtrlRegs.GPAMUX1.bit.GPIO3 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioDataRegs.GPASET.bit.GPIO2 = 0;
-				GpioDataRegs.GPASET.bit.GPIO3 = 0;
-				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
-			}
-			if (hallstate == 1) {
-				//EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
-				GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioDataRegs.GPASET.bit.GPIO0 = 0;
-				GpioDataRegs.GPASET.bit.GPIO1 = 0;
-				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
-				EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
-			}
-			if (hallstate == 5) {
-				EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*0);    // Set duty 50% initially
-				EPwm2Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
-				GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 0;		// 0=GPIO, 1=EPWM1A, 2=Resv, 3=Resv
-				GpioDataRegs.GPASET.bit.GPIO4 = 0;
-				GpioDataRegs.GPASET.bit.GPIO5 = 0;
-				//EPwm3Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*-1);    // Set duty 50% initially
-			}
+
 		} else {
 			// Set compare values
 			EPwm1Regs.CMPA.half.CMPA = (Uint16)(80000.0/PWM_Freq*PWM_Duty_Cycle);    // Set duty 50% initially
