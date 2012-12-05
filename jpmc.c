@@ -57,6 +57,7 @@ __interrupt void cpu_timer2_isr(void);
 __interrupt void scia_rx_isr(void);					// sci receive interrupt function
 __interrupt void adc_isr(void);
 __interrupt void epwm1_timer_isr(void);
+__interrupt void xint1_isr(void);					// for encoder speed measurement
 
 void InitEPwm(void);
 void init(void);
@@ -79,6 +80,12 @@ int32 hallstate = 0;
 int32 hallA = 0;
 int32 hallB = 0;
 int32 hallC = 0;
+// encoder variables
+float RPP=0.005;	// revoutions per pulse
+Uint32 EncoderCount = 0;	// increments on every rising or falling edge
+Uint32 MotorDirection;		// 1=forward, 0=reverse
+float MotorSpeed;			// motor RPM
+volatile Uint32 TimeBetweenEncoderEdges; // used to measure time between two edges of an encoder line A
 
 void main(void)
 {
@@ -141,6 +148,7 @@ void init(void)
 	PieVectTable.SCIRXINTA = &scia_rx_isr;		// SciA rx interrupt
 	PieVectTable.ADCINT1 = &adc_isr;
 	PieVectTable.EPWM1_INT = &epwm1_timer_isr;
+	PieVectTable.XINT1 = &xint1_isr;
 	EDIS;    // This is needed to disable write to EALLOW protected registers
 
 	InitEPwm();    // For this example, only initialize the ePWM Timer
@@ -162,6 +170,11 @@ void init(void)
 	CpuTimer1Regs.TCR.all = 0x4000; // Use write-only instruction to set TSS bit = 0 (starts timer) and TIE=1
 	CpuTimer2Regs.TCR.all = 0x4000; // Use write-only instruction to set TSS bit = 0 (starts timer) and TIE=1
 
+
+	CpuTimer1Regs.TCR.bit.TIE = 0;  // The CPU-Timer interrupt is disabled.
+	// setup timer1 for measure time between encoder pulses
+	CpuTimer1Regs.PRD.all = 0xffffffff;		// load timer1 period register with max 32bit value 0xffffffff
+
 	// Enable CPU int1 which is connected to CPU-Timer 0, CPU int 9 which is connected to SCIA_rx and SCIA_tx, CPU int13
 	// which is connected to CPU-Timer 1, and CPU int 14, which is connected
 	// to CPU-Timer 2:
@@ -176,6 +189,35 @@ void init(void)
     PieCtrlRegs.PIEIER9.bit.INTx1 = 1;		// Enable SCIRXINTA in the PIE: Group 9 interrupt 1
     PieCtrlRegs.PIEIER1.bit.INTx1 = 1;		// Enable INT 1.1 in the PIE
     PieCtrlRegs.PIEIER3.bit.INTx1 = 1;		// Enable EPWM INTn in the PIE: Group 3 interrupt 1-6
+    PieCtrlRegs.PIEIER1.bit.INTx4 = 1;      // Enable PIE Group 1 INT4   for xint1
+
+
+	// setup gpio registers for xint1
+	// GPIO12, GPIO16, GPIO17 inputs
+	EALLOW;
+	GpioCtrlRegs.GPAMUX1.bit.GPIO12 = 0;         // makes pin a GPIO
+	GpioCtrlRegs.GPAMUX2.bit.GPIO16 = 0;         // makes pin a GPIO
+	GpioCtrlRegs.GPAMUX2.bit.GPIO17 = 0;         // makes pin a GPIO
+	GpioCtrlRegs.GPADIR.bit.GPIO12 = 0;          // Configures the GPIO pin as an input
+	GpioCtrlRegs.GPADIR.bit.GPIO16 = 0;          // Configures the GPIO pin as an input
+	GpioCtrlRegs.GPADIR.bit.GPIO17 = 0;          // Configures the GPIO pin as an input
+
+	// GpioCtrlRegs.GPAQSEL1.bit.GPIO0 = 0;        // XINT1 Synch to SYSCLKOUT only
+	// GpioCtrlRegs.GPACTRL.bit.QUALPRD0 = 0xFF;   // Each sampling window is 510*SYSCLKOUT
+
+	EDIS;
+
+	// GPIO16 is XINT1
+	EALLOW;
+	GpioIntRegs.GPIOXINT1SEL.bit.GPIOSEL = 16;   // XINT1 is GPIO ?
+	EDIS;
+
+	// Configure XINT1 and XINT2
+	//XIntruptRegs.XINT1CR.bit.POLARITY = 1;      // Rising edge interrupt
+	XIntruptRegs.XINT1CR.bit.POLARITY = 3;      // Interrupt generated on both a falling edge and a rising edge
+
+	// Enable XINT1 and XINT2
+	XIntruptRegs.XINT1CR.bit.ENABLE = 1;        // Enable XINT1
 
 	// Enable global Interrupts and higher priority real-time debug events:
 	EINT;   // Enable Global interrupt INTM
@@ -209,6 +251,34 @@ void init(void)
 	GpioDataRegs.GPBCLEAR.bit.GPIO34 = 1;	// uncomment if --> Set Low initially
 	//GpioDataRegs.GPBSET.bit.GPIO34 = 1;	// uncomment if --> Set High initially
 	EDIS;
+}
+
+__interrupt void xint1_isr(void)		// interrupts on each rising or falling edge of encoder A signal
+{
+	TimeBetweenEncoderEdges = 0xffffffff - CpuTimer1Regs.TIM.all;	// reminder:  piccolo timers count down
+	CpuTimer1Regs.TCR.bit.TRB = 1;      // 1 = reload timer to 0xffffffff = 2^32
+
+	EncoderCount++;
+
+	// revolutions per period of enc As: RPP = 1/PPR
+	// period of enc A signal:  Tsysclock * TimeBetweenEncoderEdges * 2 = 12.5e-9 * TimeBetweenEncoderEdges * 2
+	MotorSpeed = RPP / (12.5e-9 * ((float)TimeBetweenEncoderEdges) * 2) * 60.0;   // RPM
+	UARTprintf("ms=%u\r\n",(Uint32)MotorSpeed);
+
+	if(GpioDataRegs.GPADAT.bit.GPIO17 == 1)  // check state of enc B signal
+	{
+		MotorDirection = 1;		// forward
+	}
+	else
+	{
+		MotorDirection = 0;		// reverse
+	}
+
+	if(GpioDataRegs.GPADAT.bit.GPIO12 == 1)  // index pulse detected
+		EncoderCount = 0;
+
+	// Acknowledge this interrupt to get more from group 1
+	PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
 
 void Adc_Config(void)
